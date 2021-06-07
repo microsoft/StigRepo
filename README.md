@@ -37,9 +37,10 @@ SCAR organizes the repository to deploy and document STIGs using the folders lis
 
 Additional Resources
 
-1. (Open Source Project)[]
-2. (PowerSTIG)[https://github.com/microsoft/PowerStig]
-3. (Stig Coverage Summary)[https://github.com/Microsoft/PowerStig/wiki/StigCoverageSummary]
+1. [Open Source Project](https://github.com/microsoft/StigRepo)
+2. [PowerSTIG](https://github.com/microsoft/PowerStig)
+3. [Stig Coverage Summary](https://github.com/Microsoft/PowerStig/wiki/StigCoverageSummary)
+
 ___
 
 ## Folder Structure
