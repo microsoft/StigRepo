@@ -74,15 +74,15 @@ function Update-StigRepo
     $modules = Get-Childitem $ModulePath
 
     # Update Dependent Modules
-    # Write-Output "`tRemoving old Dependencies"
-    # foreach ($module in $modules)
-    # {
-    #     Write-Output "`t`tRemoving $($module.name)"
-    #     Remove-Item $module.fullname -force -Recurse -Confirm:$false
-    # }
+    Write-Output "`tRemoving old Dependencies"
+    foreach ($module in $modules)
+    {
+        Write-Output "`t`tRemoving $($module.name)"
+        Remove-Item $module.fullname -force -Recurse -Confirm:$false
+    }
 
     Write-Output "`tInstalling Dependencies"
-    # Save-Module StigRepo -Path $ModulePath -Verbose
+    Save-Module StigRepo -Path $ModulePath -Verbose
     Save-Module PowerSTIG -Path $ModulePath -Verbose
 
     #endregion Update Dependent Modules
