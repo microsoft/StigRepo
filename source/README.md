@@ -10,7 +10,7 @@ The Stig-Repo module leverages PowerSTIG and Desired State Configuration to buil
 
 SCAR accelerates Azure readiness and ATO/CCRI processes through automated STIG compliance and digital transformation by establishing an infrastructure as code platform that organizations can customize build on top of to quickly establish and deploy Azure baselines.
 
-### Primary Capabilities
+Primary Capabilities:
 
 1. Initialize-StigRepo: Builds the STIG Compliance Automation Repository and installs dependencies on the local system
 2. New-SystemData: Scans the Active Directory Environment for targetted systems, determines applicable STIGs, and generates DSC configuration data
@@ -20,21 +20,14 @@ SCAR accelerates Azure readiness and ATO/CCRI processes through automated STIG c
 6. Get-StigChecklists: Generates STIG Checklists for all applicable STIGs for each DSC Node
 7. Update-StigRepo: Updates/downloads latest dependencies to SCAR Repo and upgrades STIG Data Files
 
-### Dependencies
+Dependencies
 
 1. Must be executed from an internet-connected system to install module dependencies
 2. Must be executed from a system with the Active Directory module installed.
 3. DSCSM Leverages PowerSTIG to drive the dynamic DSC configurations included withint he module (installed with Build-Repo or Update-ScarRepo)'
 4. Powershell Version 5.1 or greater
 
-### Release Cycle
-
-StigRepo minor versions will be released on the third Wednesday of each quarter (March, June, September, December ) with possible patch changes released in-between minor releases if/as needed.
-
-StigRepo Version 1.3 Scheduled for release on June 16th, 2021.
-
-### The STIG Compliance Automation Repository Structure
-
+The STIG Compliance Automation Repository Structure
 SCAR organizes the repository to deploy and document STIGs using the folders listed below:
 
 1. Systems: Folders for each identified Organizational Unit in Active Directory and a Powershell Data file for each identified system.
@@ -42,21 +35,15 @@ SCAR organizes the repository to deploy and document STIGs using the folders lis
 3. Artifacts: Consumable items produced by SCAR. SCAR produces DSCConfigs, MOFS, and STIG Checklists out of the box.
 4. Resources: Dependendencies leveraged by SCAR to generate SystemData and Artifacts. SCAR has Modules, Stig Data, and Wiki resources out of the box.
 
-### Contributing
+Additional Resources
 
-To request modifications or submit bug reports for the StigRepo Module, submit an issue through the Github page.
-To contribute - submit an issue, create a branch named GithubUser_IssueNumber, and submit a pull request to have your changes merged.
-
-### Additional Resources
-
-1. [PowerShell Gallery]("https://www.powershellgallery.com/packages/StigRepo/")
-2. [GitHub]("https://github.com/microsoft/StigRepo")
-3. [PowerSTIG](https://github.com/microsoft/PowerStig)
-4. [Stig Coverage Summary](https://github.com/Microsoft/PowerStig/wiki/StigCoverageSummary)
+1. [Open Source Project](https://github.com/microsoft/StigRepo)
+2. [PowerSTIG](https://github.com/microsoft/PowerStig)
+3. [Stig Coverage Summary](https://github.com/Microsoft/PowerStig/wiki/StigCoverageSummary)
 
 ___
 
-## Repository Structure
+## Folder Structure
 
 ___
 
