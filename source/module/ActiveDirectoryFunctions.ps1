@@ -180,7 +180,7 @@ function New-SystemData
         {
             $computersContainer = (Get-ADDomain).ComputersContainer
             $targetMachines = (Get-ADComputer -SearchBase $computersContainer -Properties OperatingSystem -filter {OperatingSystem -like "*Windows 10*"} ).name
-            $ouFolder = "$SystemsPath\Computers Container Win10"
+            $ouFolder = "$SystemsPath\Windows 10"
         }
         else
         {
