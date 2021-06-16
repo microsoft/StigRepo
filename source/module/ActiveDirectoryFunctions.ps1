@@ -2,7 +2,6 @@ function New-SystemData
 {
 
     <#
-
     .SYNOPSIS
     Generates configuration data based on a provided Organizational Unit
     DistinguishedName searchbase.
@@ -25,7 +24,6 @@ function New-SystemData
 
     .EXAMPLE
     New-SystemData -Rootpath "C:\SCAR" -SearchBase "CN=Servers,CN=Enterprise Management,DC=contoso,DC=com"
-
     #>
 
     [cmdletbinding()]
@@ -95,8 +93,8 @@ function New-SystemData
             statusRetentionTimeInDays      = "10"
         }
     )
-
-    $SystemsPath       = (Resolve-Path -Path "$RootPath\*Systems").Path
+    $IncludeFilePaths   = $true
+    $SystemsPath        = (Resolve-Path -Path "$RootPath\*Systems").Path
     $targetMachineOus   = New-Object System.Collections.ArrayList
     $targetMachines     = New-Object System.Collections.ArrayList
     $orgUnits           = New-Object System.Collections.ArrayList
@@ -179,8 +177,8 @@ function New-SystemData
         elseif ($ou -eq "Computers")
         {
             $computersContainer = (Get-ADDomain).ComputersContainer
-            $targetMachines = (Get-ADComputer -SearchBase $computersContainer -Properties OperatingSystem -filter {OperatingSystem -like "*Windows 10*"} ).name
-            $ouFolder = "$SystemsPath\Windows 10"
+            $targetMachines     = (Get-ADComputer -SearchBase $computersContainer -Properties OperatingSystem -filter {OperatingSystem -like "*Windows 10*"} ).name
+            $ouFolder           = "$SystemsPath\Windows 10"
         }
         else
         {
@@ -231,6 +229,7 @@ function New-SystemData
                     $ouFolder           = $using:oufolder
                     $LocalHost          = $using:LocalHost
                     $SystemsPath        = $using:SystemsPath
+                    $IncludeFilePaths   = $using:IncludeFilePaths
 
                     #region Get Applicable STIGs
                     if ($LocalHost)
@@ -509,7 +508,7 @@ function New-SystemData
                                 {
                                     $null = $configContent.add("`n`n`t`tPowerSTIG_InternetExplorer =")
                                     $null = $configContent.add("`n`t`t@{")
-                                    $null = $configContent.add("`n`t`t`tBrowserVersion 		= `"11`"")
+                                    $null = $configContent.add("`n`t`t`tBrowserVersion      = `"11`"")
                                     $null = $configContent.add("`n`t`t`tSkipRule			= `"V-46477`"")
 
                                     if ($IncludeFilePaths)
@@ -529,8 +528,8 @@ function New-SystemData
                                     if ($IncludeFilePaths)
                                     {
                                         $null = $configContent.add("`n`t`t`txccdfPath           = `"$($dotNetStigFiles.xccdfPath)`"")
-                                        $null = $configContent.add("`n`t`t`tOrgSettings			    = `"$($dotNetStigFiles.orgSettings)`"")
-                                        $null = $configContent.add("`n`t`t`tManualChecks 		    = `"$($dotNetStigFiles.manualChecks)`"")
+                                        $null = $configContent.add("`n`t`t`tOrgSettings		    = `"$($dotNetStigFiles.orgSettings)`"")
+                                        $null = $configContent.add("`n`t`t`tManualChecks        = `"$($dotNetStigFiles.manualChecks)`"")
                                         $null = $configContent.add("`n`t`t}")
                                     }
                                     else { $null = $configContent.add("`n`t`t}") }
@@ -551,30 +550,31 @@ function New-SystemData
                                 }
                                 "WindowsDefender"
                                 {
-                                    $null = $configContent.add("`n`n`t`tPowerSTIG_WindowsDefender =")
-                                    $null = $configContent.add("`n`t`t@{")
+
                                     if ($IncludeFilePaths)
                                     {
+                                        $null = $configContent.add("`n`n`t`tPowerSTIG_WindowsDefender =")
+                                        $null = $configContent.add("`n`t`t@{")
                                         $null = $configContent.add("`n`t`t`txccdfPath            = `"$($winDefenderStigFiles.xccdfPath)`"")
                                         $null = $configContent.add("`n`t`t`tOrgSettings          = `"$($winDefenderStigFiles.orgSettings)`"")
                                         $null = $configContent.add("`n`t`t`tManualChecks         = `"$($winDefenderStigFiles.manualChecks)`"")
                                         $null = $configContent.add("`n`t`t}")
                                     }
-                                    else { $null = $configContent.add("`n`n`t`t}") }
+                                    else { $null = $configContent.add("`n`n`t`tPowerSTIG_WindowsDefender = @{}") }
                                 }
                                 "WindowsFirewall"
                                 {
-                                    $null = $configContent.add("`n`n`t`tPowerSTIG_WindowsFirewall =")
-                                    $null = $configContent.add("`n`t`t@{")
 
                                     if ($IncludeFilePaths)
                                     {
+                                        $null = $configContent.add("`n`n`t`tPowerSTIG_WindowsFirewall =")
+                                        $null = $configContent.add("`n`t`t@{")
                                         $null = $configContent.add("`n`t`t`txccdfPath            = `"$($winFirewallStigFiles.xccdfPath)`"")
                                         $null = $configContent.add("`n`t`t`tOrgSettings          = `"$($winFirewallStigFiles.orgSettings)`"")
                                         $null = $configContent.add("`n`t`t`tManualChecks         = `"$($winFirewallStigFiles.manualChecks)`"")
                                         $null = $configContent.add("`n`t`t}")
                                     }
-                                    else { $null = $configContent.add("`n`n`t`t}") }
+                                    else { $null = $configContent.add("`n`n`t`tPowerSTIG_WindowsFirewall = @{}") }
                                 }
                                 "WindowsDnsServer"
                                 {
@@ -598,9 +598,9 @@ function New-SystemData
 
                                     if ($IncludeFilePaths)
                                     {
-                                        $null = $configContent.add("`n`t`t`txccdfPath    = `"$Excel2016xccdfPath`"")
-                                        $null = $configContent.add("`n`t`t`tOrgSettings  = `"$Excel2016OrgSettings`"")
-                                        $null = $configContent.add("`n`t`t`tManualChecks = `"$Excel2016ManualChecks`"")
+                                        $null = $configContent.add("`n`t`t`txccdfPath           = `"$Excel2016xccdfPath`"")
+                                        $null = $configContent.add("`n`t`t`tOrgSettings         = `"$Excel2016OrgSettings`"")
+                                        $null = $configContent.add("`n`t`t`tManualChecks        = `"$Excel2016ManualChecks`"")
                                     }
                                     $null = $configContent.add("`n`t`t}")
                                     $null = $configContent.add("`n`n`t`tPowerSTIG_Office2016_Outlook =")
@@ -608,9 +608,9 @@ function New-SystemData
 
                                     if ($IncludeFilePaths)
                                     {
-                                        $null = $configContent.add("`n`t`t`txccdfPath    = `"$Outlook2016xccdfPath`"")
-                                        $null = $configContent.add("`n`t`t`tOrgSettings  = `"$Outlook2016OrgSettings`"")
-                                        $null = $configContent.add("`n`t`t`tManualChecks = `"$Outlook2016ManualChecks`"")
+                                        $null = $configContent.add("`n`t`t`txccdfPath           = `"$Outlook2016xccdfPath`"")
+                                        $null = $configContent.add("`n`t`t`tOrgSettings         = `"$Outlook2016OrgSettings`"")
+                                        $null = $configContent.add("`n`t`t`tManualChecks        = `"$Outlook2016ManualChecks`"")
                                         $null = $configContent.add("`n`t`t}")
                                     }
                                     else { $null = $configContent.add("`n`n`t`t}") }
@@ -620,9 +620,9 @@ function New-SystemData
 
                                     if ($IncludeFilePaths)
                                     {
-                                        $null = $configContent.add("`n`t`t`txccdfPath    = `"$PowerPoint2016xccdfPath`"")
-                                        $null = $configContent.add("`n`t`t`tOrgSettings  = `"$PowerPoint2016OrgSettings`"")
-                                        $null = $configContent.add("`n`t`t`tManualChecks = `"$PowerPoint2016ManualChecks`"")
+                                        $null = $configContent.add("`n`t`t`txccdfPath           = `"$PowerPoint2016xccdfPath`"")
+                                        $null = $configContent.add("`n`t`t`tOrgSettings         = `"$PowerPoint2016OrgSettings`"")
+                                        $null = $configContent.add("`n`t`t`tManualChecks        = `"$PowerPoint2016ManualChecks`"")
                                         $null = $configContent.add("`n`t`t}")
                                     }
                                     else { $null = $configContent.add("`n`n`t`t}") }
@@ -632,9 +632,9 @@ function New-SystemData
 
                                     if ($IncludeFilePaths)
                                     {
-                                        $null = $configContent.add("`n`t`t`txccdfPath    = `"$Word2016xccdfPath`"")
-                                        $null = $configContent.add("`n`t`t`tOrgSettings  = `"$Word2016OrgSettings`"")
-                                        $null = $configContent.add("`n`t`t`tManualChecks = `"$Word2016ManualChecks`"")
+                                        $null = $configContent.add("`n`t`t`txccdfPath           = `"$Word2016xccdfPath`"")
+                                        $null = $configContent.add("`n`t`t`tOrgSettings         = `"$Word2016OrgSettings`"")
+                                        $null = $configContent.add("`n`t`t`tManualChecks        = `"$Word2016ManualChecks`"")
                                         $null = $configContent.add("`n`t`t}")
                                     }
                                     else { $null = $configContent.add("`n`n`t`t}") }
@@ -646,9 +646,9 @@ function New-SystemData
 
                                     if ($IncludeFilePaths)
                                     {
-                                        $null = $configContent.add("`n`t`t`txccdfPath    = `"$Excel2013xccdfPath`"")
-                                        $null = $configContent.add("`n`t`t`tOrgSettings  = `"$Excel2013OrgSettings`"")
-                                        $null = $configContent.add("`n`t`t`tManualChecks = `"$Excel2013ManualChecks`"")
+                                        $null = $configContent.add("`n`t`t`txccdfPath           = `"$Excel2013xccdfPath`"")
+                                        $null = $configContent.add("`n`t`t`tOrgSettings         = `"$Excel2013OrgSettings`"")
+                                        $null = $configContent.add("`n`t`t`tManualChecks        = `"$Excel2013ManualChecks`"")
                                         $null = $configContent.add("`n`t`t}")
                                     }
                                     else { $null = $configContent.add("`n`n`t`t}") }
@@ -658,9 +658,9 @@ function New-SystemData
 
                                     if ($IncludeFilePaths)
                                     {
-                                        $null = $configContent.add("`n`t`t`txccdfPath    = `"$Outlook2013xccdfPath`"")
-                                        $null = $configContent.add("`n`t`t`tOrgSettings  = `"$Outlook2013OrgSettings`"")
-                                        $null = $configContent.add("`n`t`t`tManualChecks = `"$Outlook2013ManualChecks`"")
+                                        $null = $configContent.add("`n`t`t`txccdfPath           = `"$Outlook2013xccdfPath`"")
+                                        $null = $configContent.add("`n`t`t`tOrgSettings         = `"$Outlook2013OrgSettings`"")
+                                        $null = $configContent.add("`n`t`t`tManualChecks        = `"$Outlook2013ManualChecks`"")
                                         $null = $configContent.add("`n`t`t}")
                                     }
                                     else { $null = $configContent.add("`n`n`t`t}") }
@@ -670,9 +670,9 @@ function New-SystemData
 
                                     if ($IncludeFilePaths)
                                     {
-                                        $null = $configContent.add("`n`t`t`txccdfPath    = `"$PowerPoint2013xccdfPath`"")
-                                        $null = $configContent.add("`n`t`t`tOrgSettings  = `"$PowerPoint2013OrgSettings`"")
-                                        $null = $configContent.add("`n`t`t`tManualChecks = `"$PowerPoint2013ManualChecks`"")
+                                        $null = $configContent.add("`n`t`t`txccdfPath           = `"$PowerPoint2013xccdfPath`"")
+                                        $null = $configContent.add("`n`t`t`tOrgSettings         = `"$PowerPoint2013OrgSettings`"")
+                                        $null = $configContent.add("`n`t`t`tManualChecks        = `"$PowerPoint2013ManualChecks`"")
                                         $null = $configContent.add("`n`t`t}")
                                     }
                                     else { $null = $configContent.add("`n`n`t`t}") }
@@ -682,9 +682,9 @@ function New-SystemData
 
                                     if ($IncludeFilePaths)
                                     {
-                                        $null = $configContent.add("`n`t`t`txccdfPath    = `"$Word2013xccdfPath`"")
-                                        $null = $configContent.add("`n`t`t`tOrgSettings  = `"$Word2013OrgSettings`"")
-                                        $null = $configContent.add("`n`t`t`tManualChecks = `"$Word2013ManualChecks`"")
+                                        $null = $configContent.add("`n`t`t`txccdfPath           = `"$Word2013xccdfPath`"")
+                                        $null = $configContent.add("`n`t`t`tOrgSettings         = `"$Word2013OrgSettings`"")
+                                        $null = $configContent.add("`n`t`t`tManualChecks        = `"$Word2013ManualChecks`"")
                                         $null = $configContent.add("`n`t`t}")
                                     }
                                     else { $null = $configContent.add("`n`n`t`t}") }
@@ -774,15 +774,15 @@ function New-SystemData
 
                                     $null = $configContent.add("`n`n`t`tPowerSTIG_WebSite =")
                                     $null = $configContent.add("`n`t`t@{")
-                                    $null = $configContent.add("`n`t`t`tIISVersion       = `"$IISVersion`"")
-                                    $null = $configContent.add("`n`t`t`tWebsiteName      = $websiteString")
-                                    $null = $configContent.add("`n`t`t`tWebAppPool       = $appPoolString")
+                                    $null = $configContent.add("`n`t`t`tIISVersion          = `"$IISVersion`"")
+                                    $null = $configContent.add("`n`t`t`tWebsiteName         = $websiteString")
+                                    $null = $configContent.add("`n`t`t`tWebAppPool          = $appPoolString")
 
                                     if ($IncludeFilePaths)
                                     {
-                                        $null = $configContent.add("`n`t`t`txccdfPath        = `"$($webSiteStigFiles.XccdfPath)`"")
-                                        $null = $configContent.add("`n`t`t`tOrgSettings      = `"$($webSiteStigFiles.OrgSettings)`"")
-                                        $null = $configContent.add("`n`t`t`tManualChecks     = `"$($webSiteStigFiles.ManualChecks)`"")
+                                        $null = $configContent.add("`n`t`t`txccdfPath           = `"$($webSiteStigFiles.XccdfPath)`"")
+                                        $null = $configContent.add("`n`t`t`tOrgSettings         = `"$($webSiteStigFiles.OrgSettings)`"")
+                                        $null = $configContent.add("`n`t`t`tManualChecks        = `"$($webSiteStigFiles.ManualChecks)`"")
                                         $null = $configContent.add("`n`t`t}")
                                     }
                                     else { $null = $configContent.add("`n`t`t}") }
@@ -804,15 +804,15 @@ function New-SystemData
                                     }
                                     $null = $configContent.add("`n`n`t`tPowerSTIG_WebServer =")
                                     $null = $configContent.add("`n`t`t@{")
-                                    $null = $configContent.add("`n`t`t`tSkipRule         = `"V-214429`"")
-                                    $null = $configContent.add("`n`t`t`tIISVersion       = `"$IISVersion`"")
-                                    $null = $configContent.add("`n`t`t`tLogPath          = `"C:\InetPub\Logs`"")
+                                    $null = $configContent.add("`n`t`t`tSkipRule            = `"V-214429`"")
+                                    $null = $configContent.add("`n`t`t`tIISVersion          = `"$iisVersion`"")
+                                    $null = $configContent.add("`n`t`t`tLogPath             = `"C:\InetPub\Logs`"")
 
                                     if ($IncludeFilePaths)
                                     {
-                                        $null = $configContent.add("`n`t`t`txccdfPath        = `"$($webServerStigFiles.XccdfPath)`"")
-                                        $null = $configContent.add("`n`t`t`tOrgSettings      = `"$($webServerStigFiles.OrgSettings)`"")
-                                        $null = $configContent.add("`n`t`t`tManualChecks     = `"$($webServerStigFiles.ManualChecks)`"")
+                                        $null = $configContent.add("`n`t`t`txccdfPath           = `"$($webServerStigFiles.XccdfPath)`"")
+                                        $null = $configContent.add("`n`t`t`tOrgSettings         = `"$($webServerStigFiles.OrgSettings)`"")
+                                        $null = $configContent.add("`n`t`t`tManualChecks        = `"$($webServerStigFiles.ManualChecks)`"")
                                         $null = $configContent.add("`n`t`t}")
                                     }
                                     else { $null = $configContent.add("`n`n`t`t}") }
@@ -824,7 +824,7 @@ function New-SystemData
                                     try 
                                     {
                                         $installDirectory = Invoke-Comand $machine -scriptblock {
-                                            if (Get-Childitem "$env:systemDrive\Program Files\Mozilla Firefox")
+                                            if (Test-Path "$env:systemDrive\Program Files\Mozilla Firefox")
                                             {
                                                 $firefoxDirectory = "$env:systemDrive\Program Files\Mozilla Firefox"
                                             }
@@ -839,7 +839,7 @@ function New-SystemData
                                     {
                                         $installDirectory = "C:\Program Files\Mozilla Firefox"
                                     }
-                                    $null = $configContent.add("`n`t`t`tInstallDirectory      = `"$installDirectory`"")
+                                    $null = $configContent.add("`n`t`t`tInstallDirectory    = `"$installDirectory`"")
 
                                     if ($IncludeFilePaths)
                                     {
@@ -855,6 +855,7 @@ function New-SystemData
 
                                     if ($IncludeFilePaths)
                                     {
+                                        $null = $configContent.add("`n`n`t`tPowerSTIG_Edge = @{")
                                         $null = $configContent.add("`n`t`t`txccdfPath            = `"$($edgeStigFiles.xccdfPath)`"")
                                         $null = $configContent.add("`n`t`t`tOrgSettings          = `"$($edgeStigFiles.orgSettings)`"")
                                         $null = $configContent.add("`n`t`t`tManualChecks         = `"$($edgeStigFiles.manualChecks)`"")
@@ -866,12 +867,13 @@ function New-SystemData
                                 {
                                     if ($IncludeFilePaths)
                                     {
+                                        $null = $configContent.add("`n`n`t`tPowerSTIG_Chrome = @{")
                                         $null = $configContent.add("`n`t`t`txccdfPath            = `"$($chromeStigFiles.xccdfPath)`"")
                                         $null = $configContent.add("`n`t`t`tOrgSettings          = `"$($chromeStigFiles.orgSettings)`"")
                                         $null = $configContent.add("`n`t`t`tManualChecks         = `"$($chromeStigFiles.manualChecks)`"")
                                         $null = $configContent.add("`n`t`t}")
                                     }
-                                    else { $null = $configContent.add("`n`n`t`tPowerSTIG_Chrome =@{}") }
+                                    else { $null = $configContent.add("`n`n`t`tPowerSTIG_Chrome = @{}") }
                                 }
                                 "Adobe"
                                 {

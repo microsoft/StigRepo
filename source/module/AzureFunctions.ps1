@@ -1,160 +1,25 @@
-function Publish-AzAutomationModules
-{
-    [CmdletBinding()]
-    param
-    (
-        [Parameter()]
-        [string]
-        $RootPath = (Get-Location).Path,
-
-        [Parameter(Mandatory=$true)]
-        [string]
-        $ResourceGroupName,
-
-        [Parameter(Mandatory=$true)]
-        [string]
-        $AutomationAccountName,
-
-        [Parameter()]
-        [switch]
-        $PSGallery
-    )
-
-    Write-Output "Starting Azure Automation Module Sync"
-
-    # Check for Az Context
-    $azContext = Get-AzContext -ErrorAction SilentlyContinue
-    if ($null -eq $azContext)
-    {
-        Write-Output "`tAzure Subscription not connected - Follow prompt to login."
-        Connect-AzAccount
-    }
-
-    # Get local PowerSTIG Module Version
-    Import-Module PowerSTIG -ErrorAction SilentlyContinue
-    $installedversion = (Get-Module PowerSTIG -ErrorAction SilentlyContinue).version.ToString()
-
-    switch ($PSGallery)
-    {
-        $false
-        {
-            # Check for valid Stig-Repo
-            Write-Output "`tChecking for valid StigRepo location at $RootPath"
-            $modulePath = "$Rootpath\Resources\Modules"
-
-            if (Test-Path "$modulePath")
-            {
-                Write-Output "`t`tStigRepo Location is valid"
-            }
-            else
-            {
-                Write-Output "`t`t$Rootpath is not a SCAR repository. Please point to the SCAR directory or run Initialize-StigRepo to build it."
-                exit
-            }
-
-            # Sync DSC Modules Locally
-            Write-Output "`tValidating local PowerSTIG Modules"
-
-            Import-Module PowerSTIG -ErrorAction SilentlyContinue
-            $stigRepoVersion = (Get-Childitem "$modulePath\PowerSTIG" -ErrorAction SilentlyContinue).name
-            $installedversion = (Get-Module PowerSTIG -ErrorAction SilentlyContinue).version.ToString()
-
-            if (($installedVersion -ne $stigRepoVersion) -or ($null -eq $installedversion))
-            {
-                Write-Output "`t`tSyncing PowerSTIG Modules on localhost"
-                Sync-DscModules -LocalHost -Force
-                Import-Module PowerSTIG
-                $installedVersion = (Get-Module PowerSTIG).version.tostring()
-            }
-
-            if ($null -ne $installedVersion)
-            {
-                Write-Output "`t`tPowerSTIG Module is valid."
-            }
-            else
-            {
-                Write-Output "`t`tError - Unable to install PowerSTIG module on the local system."
-                exit
-            }
-            break
-        }
-        $true
-        {
-            Write-Output "`tValidating local PowerSTIG Modules"
-            Import-Module StigRepo -ErrorAction SilentlyContinue
-            $stigRepoModule = Get-Module -Name StigRepo -ErrorAction SilentlyContinue
-
-            try 
-            {
-                if ($null -ne $stigRepoModule)
-                {
-                    Write-Output "`t`tStigRepo module is valid"
-                }
-                else
-                {
-                    Write-Output "`t`tStigRepo Module not installed - Downloading from PS Gallery"
-                    Save-Module -Name StigRepo -Path "$env:SystemDrive\Program Files\WindowsPowershell\Modules" -Force
-                    Import-Module StigRepo -Force
-                }
-
-                if ($null -ne $installedVersion)
-                {
-                    Write-Output "`t`tPowerSTIG Module is valid"
-                }
-                else
-                {
-                    Write-Output "PowerSTIG Module not installed - Installing from PowerShell gallery"
-                    Save-Module -Name PowerSTIG -Path "$env:SystemDrive\Program Files\WindowsPowershell\Modules" -Force
-                    Import-Module PowerSTIG,StigRepo -Force
-                }
-            }
-            catch
-            {
-                Write-Output "`t`tUnable to install PowerSTIG Module"
-                Throw $_
-                exit
-            }
-        }
-    }
-
-    # Publish Modules to Azure Automation
-    Write-Output "`tPublishing Modules to Azure Automation"
-
-    # Import Modules w/ dependencies
-    $keyModules = "PowerSTIG","VMWare.Vim","VMWare.VimAutomation.Common","StigRepo"
-    Import-Module $keyModules
-    $importedKeyModules = Get-Module $keyModules
-
-    # Add dependent modules to array
-    $moduleList = New-Object System.Collections.ArrayList
-    (Get-Module VMWare.VimAutomation.Common).RequiredModules | Foreach-Object { $null = $moduleList.Add($_) }
-    (Get-Module VMWare.Vim).RequiredModules | Foreach-Object { $null = $moduleList.Add($_) }
-    (Get-Module PowerSTIG ).requiredModules | Foreach-Object { $null = $moduleList.Add($_) }
-
-    # Add key modules to array after dependencies
-    $importedKeyModules | Foreach-Object { $null = $moduleList.Add($_) }
-
-    foreach ($module in $moduleList)
-    {
-        $moduleName    = $module.name
-        $moduleversion = $module.version.tostring()
-
-        try
-        {
-            Write-Output "`t`tPublishing $moduleName Version $moduleVersion"
-            $null = New-AzAutomationModule -Name $moduleName -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -ContentLinkUri "https://www.powershellgallery.com/api/v2/package/$moduleName/$moduleVersion" -ErrorAction Stop
-        }
-        catch
-        {
-            Write-Output "Publishing $moduleName Failed"
-            Throw $_
-        }
-    }
-    Write-Output "`n`n`tAzure Automation Module Sync complete."
-}
-
 function New-AzSystemData
 {
+    <#
+    .SYNOPSIS
+    Generates system data for Azure Virtual Machines
+
+    .PARAMETER RootPath
+    Root path of the Stig Compliance Automation Repository. Initialize by running Initialize-StigRepo
+
+    .PARAMETER ResourceGroupName
+    Name of the ResourceGroup containing targeted Virtual Machines
+
+    .PARAMETER IncludeLcmSettings
+    Adds LocalConfigurationManager Settings to the System Data File for each Virtual Machine.
+
+    .PARAMETER LcmSettings
+    Hashtable of Local Configuration Manager Settings
+
+    .EXAMPLE
+    New-AzSystemData -RootPath "C:\StigRepo" -ResourceGroupName "My-Azure-ResourceGroup"
+
+    #>
     [CmdletBinding()]
     param (
         [Parameter()]
@@ -165,22 +30,16 @@ function New-AzSystemData
         [string]
         $ResourceGroupName,
 
-        [Parameter()]
-        [string]
-        $StorageAccountName = "scarstorage",
-
-        [Parameter()]
-        [string]
-        $ContainerName = "Systems",
-
-        [Parameter()]
-        [switch]
-        $IncludeFilePaths,
+        # [Parameter()]
+        # [switch]
+        # $IncludeFilePaths,
 
         [Parameter()]
         [switch]
         $IncludeLCMSettings,
-
+        
+        [Parameter()]
+        [HashTable]
         $LcmSettings = @{
             actionAfterReboot              = ""
             agentId                        = ""
@@ -209,10 +68,10 @@ function New-AzSystemData
     )
 
     Write-Output "Starting Azure SystemData Creation"
-
-    $systemsPath     = (Resolve-Path "$RootPath\Systems").Path
-    $resourceGroups  = New-Object System.Collections.ArrayList
-    $virtualMachines = New-Object System.Collections.ArrayList
+    $IncludeFilePaths = $true
+    $systemsPath      = (Resolve-Path "$RootPath\Systems").Path
+    $resourceGroups   = New-Object System.Collections.ArrayList
+    $virtualMachines  = New-Object System.Collections.ArrayList
 
     if ("" -eq $ResourceGroupName) { Get-AzVM | ForEach-Object { $null = $virtualMachines.Add($_) } }
     else { Get-AzVM -ResourceGroupName $ResourceGroupName | ForEach-Object { $null = $virtualMachines.Add($_) } }
@@ -870,8 +729,200 @@ function New-AzSystemData
     }
 }
 
+function Publish-AzAutomationModules
+{
+    <#
+    .SYNOPSIS
+    Publishes modules stored in the SCAR repository into an Azure Automation Account
+
+    .PARAMETER RootPath
+    Root path of the Stig Compliance Automation Repository. Initialize by running Initialize-StigRepo
+
+    .PARAMETER ResourceGroupName
+    Name of the ResourceGroup containing the targeted Azure Automation Account
+
+    .PARAMETER AutomationAccountName
+    Name of the Azure Automation Account
+
+    .PARAMETER PSGallery
+    Switch to install modules directly from the powershell gallary instead of using the modules stored in the local Stig Repository.
+
+    .EXAMPLE
+    Publish-AzAutomationModules -Rootpath "C:\StigRepo" -ResourceGroupName "My-AzAutomation-ResourceGroup" -AutomationAccountName "MyAutomationAccount"
+    #>
+
+    [CmdletBinding()]
+    param
+    (
+        [Parameter()]
+        [string]
+        $RootPath = (Get-Location).Path,
+
+        [Parameter(Mandatory=$true)]
+        [string]
+        $ResourceGroupName,
+
+        [Parameter(Mandatory=$true)]
+        [string]
+        $AutomationAccountName,
+
+        [Parameter()]
+        [switch]
+        $PSGallery
+    )
+
+    Write-Output "Starting Azure Automation Module Sync"
+
+    # Check for Az Context
+    $azContext = Get-AzContext -ErrorAction SilentlyContinue
+    if ($null -eq $azContext)
+    {
+        Write-Output "`tAzure Subscription not connected - Follow prompt to login."
+        Connect-AzAccount
+    }
+
+    # Get local PowerSTIG Module Version
+    Import-Module PowerSTIG -ErrorAction SilentlyContinue
+    $installedversion = (Get-Module PowerSTIG -ErrorAction SilentlyContinue).version.ToString()
+
+    switch ($PSGallery)
+    {
+        $false
+        {
+            # Check for valid Stig-Repo
+            Write-Output "`tChecking for valid StigRepo location at $RootPath"
+            $modulePath = "$Rootpath\Resources\Modules"
+
+            if (Test-Path "$modulePath")
+            {
+                Write-Output "`t`tStigRepo Location is valid"
+            }
+            else
+            {
+                Write-Output "`t`t$Rootpath is not a SCAR repository. Please point to the SCAR directory or run Initialize-StigRepo to build it."
+                exit
+            }
+
+            # Sync DSC Modules Locally
+            Write-Output "`tValidating local PowerSTIG Modules"
+
+            Import-Module PowerSTIG -ErrorAction SilentlyContinue
+            $stigRepoVersion = (Get-Childitem "$modulePath\PowerSTIG" -ErrorAction SilentlyContinue).name
+            $installedversion = (Get-Module PowerSTIG -ErrorAction SilentlyContinue).version.ToString()
+
+            if (($installedVersion -ne $stigRepoVersion) -or ($null -eq $installedversion))
+            {
+                Write-Output "`t`tSyncing PowerSTIG Modules on localhost"
+                Sync-DscModules -LocalHost -Force
+                Import-Module PowerSTIG
+                $installedVersion = (Get-Module PowerSTIG).version.tostring()
+            }
+
+            if ($null -ne $installedVersion)
+            {
+                Write-Output "`t`tPowerSTIG Module is valid."
+            }
+            else
+            {
+                Write-Output "`t`tError - Unable to install PowerSTIG module on the local system."
+                exit
+            }
+            break
+        }
+        $true
+        {
+            Write-Output "`tValidating local PowerSTIG Modules"
+            Import-Module StigRepo -ErrorAction SilentlyContinue
+            $stigRepoModule = Get-Module -Name StigRepo -ErrorAction SilentlyContinue
+
+            try 
+            {
+                if ($null -ne $stigRepoModule)
+                {
+                    Write-Output "`t`tStigRepo module is valid"
+                }
+                else
+                {
+                    Write-Output "`t`tStigRepo Module not installed - Downloading from PS Gallery"
+                    Save-Module -Name StigRepo -Path "$env:SystemDrive\Program Files\WindowsPowershell\Modules" -Force
+                    Import-Module StigRepo -Force
+                }
+
+                if ($null -ne $installedVersion)
+                {
+                    Write-Output "`t`tPowerSTIG Module is valid"
+                }
+                else
+                {
+                    Write-Output "PowerSTIG Module not installed - Installing from PowerShell gallery"
+                    Save-Module -Name PowerSTIG -Path "$env:SystemDrive\Program Files\WindowsPowershell\Modules" -Force
+                    Import-Module PowerSTIG,StigRepo -Force
+                }
+            }
+            catch
+            {
+                Write-Output "`t`tUnable to install PowerSTIG Module"
+                Throw $_
+                exit
+            }
+        }
+    }
+
+    # Publish Modules to Azure Automation
+    Write-Output "`tPublishing Modules to Azure Automation"
+
+    # Import Modules w/ dependencies
+    $keyModules = "PowerSTIG","VMWare.Vim","VMWare.VimAutomation.Common","StigRepo"
+    Import-Module $keyModules
+    $importedKeyModules = Get-Module $keyModules
+
+    # Add dependent modules to array
+    $moduleList = New-Object System.Collections.ArrayList
+    (Get-Module VMWare.VimAutomation.Common).RequiredModules | Foreach-Object { $null = $moduleList.Add($_) }
+    (Get-Module VMWare.Vim).RequiredModules | Foreach-Object { $null = $moduleList.Add($_) }
+    (Get-Module PowerSTIG ).requiredModules | Foreach-Object { $null = $moduleList.Add($_) }
+
+    # Add key modules to array after dependencies
+    $importedKeyModules | Foreach-Object { $null = $moduleList.Add($_) }
+
+    foreach ($module in $moduleList)
+    {
+        $moduleName    = $module.name
+        $moduleversion = $module.version.tostring()
+
+        try
+        {
+            Write-Output "`t`tPublishing $moduleName Version $moduleVersion"
+            $null = New-AzAutomationModule -Name $moduleName -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -ContentLinkUri "https://www.powershellgallery.com/api/v2/package/$moduleName/$moduleVersion" -ErrorAction Stop
+        }
+        catch
+        {
+            Write-Output "Publishing $moduleName Failed"
+            Throw $_
+        }
+    }
+    Write-Output "`n`n`tAzure Automation Module Sync complete."
+}
+
 function Publish-RepoToBlob
 {
+    <#
+    .SYNOPSIS
+    Publishes the STIG Compliance Automation Repository to Azure Blob Storage
+
+    .PARAMETER RootPath
+    Root path of the Stig Compliance Automation Repository. Initialize by running Initialize-StigRepo
+
+    .PARAMETER ResourceGroupName
+    Name of the ResourceGroup containing the targetted Azure Storage Account
+
+    .PARAMETER ContainerName
+    Name of the targetted Azure Storage Container
+
+    .EXAMPLE
+    Publish-RepoToBlob -RootPath "C:\StigRepo" -ResourceGroupName "My-Azure-ResourceGroup" -ContainerName "SCAR"
+    #>
+    
     [CmdletBinding()]
     param(
         [Parameter()]
@@ -920,6 +971,23 @@ function Publish-RepoToBlob
 
 function Register-AzAutomationNodes
 {
+    <#
+    .SYNOPSIS
+    Registers Virtual Machines with generated System Data in SCAR as Azure Automation Nodes
+
+    .PARAMETER ResourceGroupName
+    Name of the Autmation Account ResourceGroup
+
+    .PARAMETER VMResourceGroup
+    Name of the Virtual Machine ResourceGroup
+
+    .PARAMETER AutomationAccountName
+    Name of the Azure Automation Account
+
+    .EXAMPLE
+    Register-AzAutomationNodes -ResourceGroupName "AzAutomationRG" -AutomationAccountName "MyAutomationAccount" -VMResourceGroup "VirtualMachineRG"
+
+    #>
     [CmdletBinding()]
     param(
         [Parameter()]
@@ -939,24 +1007,103 @@ function Register-AzAutomationNodes
         $AutomationAccountName
 
     )
-    
-    if ('' -ne $VMResourceGroup)
-    {
-        $virtualMachines = Get-AzVM -ResourceGroupName $VMResourceGroup
-    }
-    else
-    {
-        $virtualMachines = Get-AzVM
-    }
-    
+
+    $virtualMachines = Get-AzVM -ResourceGroupName $VMResourceGroup
+
     foreach ($virtualMachine in $virtualMachines)
     {
-        Register-AzAutomationDscNode -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -AzureVMName $virtualMachine.Name
+        Write-Output "Registering $($VirtualMachine.Name)"
+        $configName = $virtualMachine.Name.replace("-","_")
+        Register-AzAutomationDscNode -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -AzureVMName $virtualMachine.Name -NodeConfigurationName $configName
     }
+}
+
+function Export-AzDscConfigurations
+{
+    <#
+    .SYNOPSIS
+    Generates PowerSTIG Configurations for system data files that are compatible with Azure Automation
+
+    .PARAMETER RootPath
+    Path to the Stig Compliance Automation Repository
+
+    .EXAMPLE
+    Export-AzDscConfigurations -RootPath "C:\StigRepo"
+    #>
+    
+    [CmdletBinding()]
+    param(
+        [Parameter()]
+        [string]
+        $RootPath = (Get-Location).Path
+
+    )
+
+    Write-Output "`tGenerating Azure Automation DSC Configuration Scripts"
+
+    $systemFiles        = Get-Childitem "$Rootpath\Systems\*.psd1" -Recurse | Where-Object FullName -notlike "*Staging*"
+    $azConfigFolderPath = "$RootPath\Artifacts\AzConfigs"
+    
+    Write-Output "`t`tCreating Azure Configuration Folder - $azConfigFolderPath"
+    $azConfigPath   = (New-Item -Path $azConfigFolderPath -ItemType Directory -Force).FullName
+
+    foreach ($systemFile in $systemFiles)
+    {
+        Write-Output "`t`t$($systemFile.BaseName) - Generating Configuration for Azure Automation"
+        $azConfigName   = $systemFile.BaseName.replace("-","_")
+        $azConfigFile   = New-Item -ItemType File -Path "$azConfigPath\$azConfigName.ps1" -Force
+        $systemData     = Invoke-Expression (Get-Content $systemFile | Out-String)
+        [array]$configs = $systemData.AppliedConfigurations
+        $azCOnfigString = "Configuration $($azConfigName)`n{"
+        $azCOnfigString += "`n`tImport-DscResource -ModuleName `'PowerSTIG`'`n"
+        $azCOnfigString += "`n`tNode `$AllNodes.Where{`$_.NodeName -eq `"$($systemFile.BaseName)`"}.NodeName`n`t{"
+        
+        foreach ($resource in $configs.keys)
+        {
+            $resourceName = $resource.Replace("PowerSTIG_","")
+            $azConfigString += "`n`t`t$resourceName = @{"
+            $resourceParams = $configs.$resource.keys
+            if ($null -ne $resourceParams)
+            {
+                foreach ($param in $resourceParams)
+                {
+                    $name = $param
+                    $value = $configs.$resource.$param
+                    $azConfigString += "`n`t`t`t$name = `'$value`'"
+                }
+                $azConfigString += "`n`t`t}`n"
+            }
+            else 
+            {
+                $azConfigString += "}`n"
+            }
+        }
+        
+        $azConfigString += "`t}`n}"
+        Set-Content $azConfigFile.FullName -Value $azConfigString -Force
+    }
+    Write-Output "`tAzure Automation DSC Configuration Generation Complete"
 }
 
 function Import-AzDscConfigurations
 {
+    <#
+    .SYNOPSIS
+    Imports files generated by Export-AzDscConfigurations to an Azure Automation Account
+
+    .PARAMETER ResourceGroupName
+    Name of the Autmation Account ResourceGroup
+
+    .PARAMETER AutomationAccountName
+    Name of the Azure Automation Account
+
+    .PARAMETER RootPath
+    Path to the Stig Compliance Automation Repository
+    
+    .EXAMPLE
+    Import-DscConfigurations -Rootpath "C:\StigRepo" -ResourceGroupName "MyAutomationAccountRG" -AutomationAccountName "MyAutomationAccount"
+    #>
+    
     [CmdletBinding()]
     param(
         [Parameter()]
@@ -973,23 +1120,37 @@ function Import-AzDscConfigurations
 
     )
 
-    Write-Output "Publishing DSC Configurations"
-    $dscConfigurations = Get-Childitem "$RootPath\Artifacts\DscConfigs\*.ps1" | Where-Object { $_.name -notlike "*allnodes*" }
-    $azConfigPath = (New-Item -Path "$RootPath\Artifacts\AzConfigs" -ItemType Directory -Force).FullName
+    Write-Output "Starting Azure Automation import - $AutomationAccountName"
 
-    foreach ($config in $dscConfigurations)
+    try 
     {
-        Write-Output "`tPublishing $($config.BaseName) Configuration to Azure Automation Account"
+        $azConfigPath   = (Resolve-Path -Path "$RootPath\Artifacts\AzConfigs" -ErrorAction 'Stop').Path
+        $azConfigFiles  = Get-Childitem "$azConfigPath\*.ps1"  
+    }
+    catch
+    {
+        Write-Output "`tNo Azure DscConfiguration Files Present. Exporting Azure Automation Configuration Files."
+        Export-AzDscConfigurations -RootPath $RootPath
+        $azConfigPath   = (Resolve-Path -Path "$RootPath\Artifacts\AzConfigs" -ErrorAction 'Stop').Path
+        $azConfigFiles  = Get-Childitem "$azConfigPath\*.ps1"  
+    }
 
-        Write-Output "`t`tCopying/Reformating Configuration for Azure Automation"
-        Copy-Item $config.FullName -Destination $azConfigPath -Force
-        $newName = $config.name.replace("-","_")
-        Rename-Item "$azConfigPath\$($config.Name)" -NewName $newName -Force
-        $azConfig = Get-Item -Path "$azConfigPath\$NewName"
+    
+    if ($null -eq (Get-AzContext))
+    {
+        Write-Output "`tAzure Context not established. Follow prompt to login."
+        Connect-AzAccount
+    }
+
+    foreach ($azConfigFile in $azConfigFiles)
+    {
+        $azConfigName = $azConfigFile.BaseName 
+        Write-Output "`t$($azConfigFile.BaseName) - Starting Azure Automation Sync"
 
         try
         {
-            Import-AzAutomationDscConfiguration -SourcePath $azConfig.FullName -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -Published
+            Write-Output "`t`tPublishing Configuration to Azure Automation Account"
+            $null = Import-AzAutomationDscConfiguration -SourcePath $azConfigFile.FullName -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -Published -Force
         }
         catch
         {
@@ -997,15 +1158,16 @@ function Import-AzDscConfigurations
             throw $_
         }
 
-        Write-Output "`tStarting CompilationJob - $($config.BaseName)"
         try
         {
-            Start-AzAutomationDscCompilationJob -ConfigurationName $configName -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName
+            Write-Output "`t`tCompiling Azure Automation Configuration"
+            $null = Start-AzAutomationDscCompilationJob -ConfigurationName $azconfigName -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName
         }
         catch
         {
-            Write-Output "`t`tAzure Automation Import failed"
+            Write-Output "`t`tAzure Automation Compilation Job Failed"
             throw $_
         }
     }
+    Write-Output "Azure Automation import complete"
 }

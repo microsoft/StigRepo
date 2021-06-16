@@ -1,15 +1,34 @@
 function Initialize-StigRepo
 {
+    <#
+
+    .SYNOPSIS
+    Initalizes/builds the Stig Compliance Automation Repository (SCAR). 
+    Creates repository folders, installs latest dependent module versions, and generates StigData files required
+    for SCAR functionality.
+
+    .PARAMETER RootPath
+    Path to the root of the SCAR repository/codebase.
+
+    .EXAMPLE
+    Build the STIG Compliance Automation Repository within the current filepath
+
+    Initialize-StigRepo
+
+    .EXAMPLE
+    Build the STIG Compliance Automation Repository within a specified folderpath
+
+    Initialize-StigRepo -RootPath "C:\StigRepo"
+
+    #>
+
     [CmdletBinding()]
     param
     (
         [Parameter()]
         [string]
-        $RootPath = (Get-Location).Path,
+        $RootPath = (Get-Location).Path
 
-        [Parameter()]
-        [switch]
-        $SkipRepoModule
     )
 
     Write-Output "Beginning Stig Compliance Automation Repository (SCAR) Build"
@@ -59,6 +78,37 @@ function Initialize-StigRepo
 
 function Update-StigRepo
 {
+
+    <#
+
+    .SYNOPSIS
+    Updates an existing/established Stig Compliance Automation Repository (SCAR).
+    Downloads/installs the latest dependent module versions
+    Creates a backup of existing StigData files and generates new files from the lastest version of the PowerSTIG module
+
+    .PARAMETER RootPath
+    Path to the root of the SCAR repository/codebase.
+
+    .PARAMETER SkipStigRepoModule
+    Skips downloading/updating the StigRepo module
+
+    .PARAMETER SkipPowerStigModules
+    Skips downloading/updating PowerSTIG and dependent modules
+
+    .EXAMPLE
+
+    Update the STIG Compliance Automation Repository in the current filepath
+
+    Update-StigRepo
+
+    .EXAMPLE
+
+    Update the STIG Compliance Automation Repository within a specified folderpath
+
+    Initialize-StigRepo -RootPath "C:\StigRepo"
+
+    #>
+
     [CmdletBinding()]
     param
     (
@@ -86,15 +136,15 @@ function Update-StigRepo
     $modules        = Get-Childitem $ModulePath
 
     # Update Dependent Modules
-    Write-Output "`tRemoving old Dependencies"
+    Write-Output "`tRemoving old module dependencies"
     foreach ($module in $modules)
     {
         Write-Output "`t`tRemoving $($module.name)"
         Remove-Item $module.fullname -force -Recurse -Confirm:$false
     }
 
-    Write-Output "`tInstalling Dependencies"
-    
+    Write-Output "`tInstalling new module Dependencies"
+
     if (-not ($SkipStigRepoModule))
     {
         Write-Output "`t`tUpdating StigRepo Module"
@@ -246,28 +296,25 @@ function Start-DscBuild
     .PARAMETER Rootpath
     Path to the root of the SCAR repository/codebase.
 
-    .PARAMETER ValidateModules
+    .PARAMETER SyncModules
     Executes the Sync-DscModules cmdlet and sync modules/versions with what is in the "5. resouces\Modules" folder of
     SCAR.
 
-    .PARAMETER ArchiveFiles
+    .PARAMETER CompressArtifacts
     Switch parameter that archives the artifacts produced by SCAR. This switch compresses the artifacts and
     places them in the archive folder.
 
     .PARAMETER CleanBuild
     Switch parameter that removes files from the MOFs and Artifacts folders to create a clean slate for the SCAR build.
 
-    .PARAMETER CleanArchive
-    Switch Parameter that r$dscdataemoves files from the archive folder.
-
     .PARAMETER SystemFiles
     Allows users to provide an array of configdata files to target outside of the Systems folder.
 
-    .PARAMETER PreRequisites
-    Executes nodededata generation, DSC module copy, and WinRM configuration as part of the SCAR build process.
+    .PARAMETER ImportModules
+    Imports Required/Dependent Modules - Modules must be synced for proper functionality.
 
     .EXAMPLE
-    Start-DscBuild -RootPath "C:\DSC Management" -CleanBuild -CleanArchive -PreRequisites
+    Start-DscBuild -RootPath "C:\DSC Management" -CleanBuild -PreRequisites
 
     #>
 
@@ -284,11 +331,11 @@ function Start-DscBuild
 
         [Parameter()]
         [switch]
-        $CopyModules,
+        $SyncModules,
 
         [Parameter()]
         [switch]
-        $ArchiveFiles,
+        $CompressArtifacts,
 
         [Parameter()]
         [switch]
@@ -300,7 +347,7 @@ function Start-DscBuild
 
         [Parameter()]
         [switch]
-        $PreRequisites
+        $ImportModules
     )
 
     # Root Folder Paths
@@ -317,11 +364,11 @@ function Start-DscBuild
     # Remove old Mofs/Artifacts
     if ($CleanBuild)
     {
-        Remove-BuildItems -RootPath $RootPath
+        Remove-StigRepoData -RootPath $RootPath
     }
 
     # Validate Modules on host and target machines
-    if ($CopyModules)
+    if ($SyncModules)
     {
         Sync-DscModules -Rootpath $RootPath
     }
@@ -329,17 +376,17 @@ function Start-DscBuild
     # Import required DSC Resource Module
     if ($ImportModules)
     {
-        Import-DscModules -ModulePath "$ResourcePath\Modules"
+        Import-DscModules -RootPath $RootPath
     }
 
     # Combine PSD1 Files
     $allNodesDataFile = "$artifactPath\DscConfigs\AllNodes.psd1"
-    $SystemFiles = New-Object System.Collections.ArrayList
 
-    if ('' -eq $SystemFiles)
+    if ($SystemFiles.count -lt 1)
     {
         if ('' -eq $TargetFolder)
         {
+            $SystemFiles = New-Object System.Collections.ArrayList
             $null = Get-ChildItem -Path "$SystemsPath\*.psd1" -Recurse | Where-Object { ($_.Fullname -notmatch "Staging") -and ($_.Fullname -Notlike "Readme*")} | ForEach-Object {$null = $systemFiles.add($_)}
             Get-CombinedConfigs -RootPath $RootPath -AllNodesDataFile $allNodesDataFile -SystemFiles $SystemFiles
             Export-DynamicConfigs -SystemFiles $SystemFiles -ArtifactPath $artifactPath -DscConfigPath $dscConfigPath
@@ -355,7 +402,7 @@ function Start-DscBuild
     }
 
     # Archive generated artifacts
-    if ($archiveFiles)
+    if ($CompressArtifacts)
     {
         Compress-DscArtifacts -Rootpath $RootPath
     }
@@ -677,20 +724,20 @@ function Export-Mofs
     $mofPath            = (Resolve-Path -Path "$RootPath\*Artifacts\Mofs").Path
     $dscConfigPath      = (Resolve-Path -Path "$RootPath\*Artifacts\DscConfigs").Path
     $allNodesDataFile   = (Resolve-Path -Path "$dscConfigPath\Allnodes.psd1").path
-    $SystemFiles        = New-Object System.Collections.ArrayList
     $dscNodeConfigs     = New-Object System.Collections.ArrayList
     $jobs               = New-Object System.Collections.ArrayList
 
     if ($SystemFiles.count -lt 1)
     {
+        $SystemFiles        = New-Object System.Collections.ArrayList
+
         if ('' -ne $TargetFolder)
         {
-            $null = Get-Childitem "$RootPath\Systems\$TargetFolder\*.psd1" -Recurse | ForEach-Object {$null = $SystemFiles.add($_)}
+            $null = Get-Childitem "$RootPath\Systems\$TargetFolder\*.psd1" -Recurse | Where-Object fullname -notlike "*staging*" | ForEach-Object {$null = $SystemFiles.add($_)}
         }
         else
         {
-            $SystemFiles      = New-Object System.Collections.ArrayList
-            $null = Get-Childitem "$RootPath\Systems\*.psd1" -Recurse | ForEach-Object {$null = $SystemFiles.add($_)}
+            $null = Get-Childitem "$RootPath\Systems\*.psd1" -Recurse | Where-Object fullname -notlike "*staging*" | ForEach-Object {$null = $SystemFiles.add($_)}
         }
     }
 
@@ -713,7 +760,6 @@ function Export-Mofs
     {
         $nodeName       = $nodeConfig.BaseName
         $configPath     = $nodeConfig.FullName
-        $allNodesPath   = $allNodesDataFile.FullName
         $systemFile     = (Resolve-Path -Path "$RootPath\Systems\*\$nodeName.psd1").Path
         $data           = Invoke-Expression (Get-Content $SystemFile | Out-String)
 
@@ -797,7 +843,7 @@ function Remove-StigRepoData
     Path to the root of the SCAR repository/codebase.
 
     .EXAMPLE
-    Clean-ScarRepo -Rootpath "C:\SCAR"
+    Remove-StigRepoData -Rootpath "C:\SCAR"
 
     #>
 
@@ -810,25 +856,43 @@ function Remove-StigRepoData
 
     )
 
-    $artifactPath   = (Resolve-Path "$RootPath\*Artifacts").Path
-    $mofPath        = (Resolve-Path "$ArtifactPath\Mofs").Path
-    $cklPath        = (Resolve-Path "$ArtifactPath\STIG Checklists").Path
-    $dscConfigPath  = (Resolve-Path "$ArtifactPath\DscConfigs").Path
-    $SystemsPath   = (Resolve-Path "$RootPath\Systems").Path
+    Write-Host "Starting StigRepo Cleanup"
 
+    try
+    {
+        $artifactPath   = (Resolve-Path "$RootPath\*Artifacts" -ErrorAction 'Stop').Path
+        $mofPath        = (Resolve-Path "$ArtifactPath\Mofs" -ErrorAction 'Stop').Path
+        $cklPath        = (Resolve-Path "$ArtifactPath\STIG Checklists" -ErrorAction 'Stop').Path
+        $dscConfigPath  = (Resolve-Path "$ArtifactPath\DscConfigs" -ErrorAction 'Stop').Path
+        $SystemsPath    = (Resolve-Path "$RootPath\Systems" -ErrorAction 'Stop').Path
+    }
+    catch
+    {
+        Write-Output "`t$RootPath is not a valid Stig Compliance Automation Repository."
+        Exit
+    }
+
+    Write-Output "`tGathing StigRepo Files to remove"
     $mofs           = Get-Childitem -Path "$MofPath\*.mof" -Recurse
     $dscConfigs     = Get-Childitem -Path "$dscConfigPath\*.ps1" -Recurse
     $checklists     = Get-Childitem -Path "$cklPath\*.ckl" -Recurse
-    $SystemFiles  = Get-Childitem -Path "$SystemsPath\" -Recurse | Where {$_.name -notlike "*.keep*"}
+    $SystemFiles    = Get-Childitem -Path "$SystemsPath\" -Recurse | Where {$_.name -notlike "*.keep*"}
 
-    Write-Output "`n`tRemoving all systems and artifacts from the SCAR repository."
+    Write-Output "`tAdding Files to removal array."
+    $removeItems = New-Item System.Collections.Arraylist
+    $mofs        | ForEach-Object { $removeItems.Add($_.FullName) }
+    $dscConfigs  | ForEach-Object { $removeItems.Add($_.FullName) }
+    $checklists  | ForEach-Object { $removeItems.Add($_.FullName) }
+    $systemFiles | ForEach-Object { $removeItems.Add($_.FullName) }
+
+    Write-Output "`tRemoving files from the Stig Complaince Automation Repository."
 
     foreach ($item in $removeItems)
     {
-        Write-Output "Removing $($item.Name)"
+        Write-Output "`t`tRemoving $($item.Name)"
         Remove-Item $item.Fullname -Confirm:$false -ErrorAction SilentlyContinue
     }
-    Write-Output "`r`n"
+    Write-Output "`r`nStig Repo cleanup complete."
 }
 
 function Compress-StigRepoArtifacts
@@ -862,7 +926,6 @@ function Compress-StigRepoArtifacts
     Compress-Archive -Path $artifactPath -DestinationPath "$artifactPath\RepoArtifacts-$dateStamp.zip" -Update
 }
 
-
 function Import-DscModules
 {
     <#
@@ -870,7 +933,7 @@ function Import-DscModules
     .SYNOPSIS
     Imports the required modules stored in the "Resources\Modules" folder on the local system.
 
-    .PARAMETER Rootpath
+    .PARAMETER RootPath
     Path to the root of the SCAR repository/codebase.
 
     .EXAMPLE
@@ -883,9 +946,19 @@ function Import-DscModules
 
         [Parameter()]
         [String]
-        $ModulePath
+        $RootPath
 
     )
+
+    try
+    {
+        $modulePath = (Resolve-Path -Path "$RootPath\Resources\Modules" -ErrorAction 'Stop')
+    }
+    catch
+    {
+        Write-Output "`t$RootPath is not a valid STIG Complaince Automation Repository"
+        Exit
+    }
 
     $modules = @(Get-ChildItem -Path $ModulePath -Directory -Depth 0)
     Write-Output "`n`tBUILD: Importing required modules onto the local system."

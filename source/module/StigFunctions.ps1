@@ -10,20 +10,38 @@ function Get-StigChecklists
     C:\Your Repo\SCAR\
 
     .PARAMETER OutputPath
-    Path of where the checklists will be generated. Defaults to:
-    Artifacts\Stig Checklist
+    Path of where the checklists will be generated.
+    Defaults to: $RootPath\Artifacts\Stig Checklists
 
     .PARAMETER TargetMachines
     List of target machines. If not specificied, a list will be generated from configurations present in "C:\Your Repo\SCAR\Systems"
 
-    .PARAMETER TestConfig
-    Switch parameter that allows testing against the configuration and the target machine. If switch is used, it will run test-dscconfiguration for the mof against the target machines to verify compliance.
+    .PARAMETER TargetFolder
+    Targets a specifc set of systems by specifying the folder/container name under the $RootPath\Systems container.
+    Example: Get-StigChecklists -TargetFolder "FileServers"
+
+    .PARAMETER LocalHost
+    Limit STIG Checklist generation to the local system. This is primarily used for deploying StigRepo/SCAR through SCCM for Win10 Machines.
+
+    .PARAMETER Enclave
+    Set to "Classified" if generating STIG Checklists for a classified network to set the classification within the generated STIG Checklists
+    Defaults to "Unclassified" 
 
     .EXAMPLE
-    Example Get-StigChecklists -RootPath "C:\Your Repo\SCAR\"
+    Generate STIG Checklists for all systems in the Systems Folder:
+    Get-StigChecklists -RootPath "C:\StigRepo"
 
     .EXAMPLE
-    Example Get-StigChecklists -RootPath "C:\Your Repo\SCAR\" -TestConfig
+    Generate STIG Checklists for Systems on a Classified/SIPR network
+    Get-StigChecklists -RootPath "C:\StigRepo" -Enclave "Classified"
+
+    .EXAMPLE
+    Generate STIG Checklists for the localhost:
+    Get-StigChecklists -LocalHost
+
+    .EXAMPLE
+    Generate STIG Checklists for a specific subset of systems
+    Get-StigChecklists -TargetFolder "FileServers"
 
     #>
 
@@ -47,18 +65,6 @@ function Get-StigChecklists
         $TargetFolder,
 
         [Parameter()]
-        [string]
-        $checklistDataPath,
-
-        [Parameter()]
-        [switch]
-        $MofSettings,
-
-        [Parameter()]
-        [switch]
-        $GenerateReports,
-
-        [Parameter()]
         [switch]
         $LocalHost,
 
@@ -76,9 +82,10 @@ function Get-StigChecklists
     $cklContainer   = (Resolve-Path -Path "$artifactsPath\STIG Checklists").Path
     $allCkls        = @()
 
-    # Import PowerSTIG Checklist Functions 
+    # Import PowerSTIG Checklist Functions
     try
     {
+        Import-Module PowerSTIG
         $powerStigPath = Split-Path -Path (Get-Module PowerStig).Path -Parent
         "$powerStigPath\Module\STIG\Functions.Checklist.ps1"
     }
@@ -150,6 +157,7 @@ function Get-StigChecklists
             $cklContainer       = $using:cklContainer
             $SystemFile         = $using:SystemFile
             $data               = $using:data
+            $enclave            = $using:enclave
             $dscResult          = $null
             $remoteCklJobs      = New-Object System.Collections.ArrayList
 
@@ -159,9 +167,9 @@ function Get-StigChecklists
             if ($null -ne $data.manualStigs)            {$manualStigs  = $data.manualStigs.getenumerator()}
             if ($null -ne $appliedStigs)
             {
-                $winRmTest  = Test-WSMan -Computername $machine -Authentication Default -Erroraction silentlycontinue
-                $ps5check   = Invoke-Command -ComputerName $machine -ErrorAction SilentlyContinue -Scriptblock {return $psversiontable.psversion.major}
-                $osVersion          = (Get-WmiObject Win32_OperatingSystem).caption | Select-String "(\d+)([^\s]+)" -AllMatches | Foreach-Object {$_.Matches.Value}
+                $winRmTest = Test-WSMan -Computername $machine -Authentication Default -Erroraction silentlycontinue
+                $ps5check  = Invoke-Command -ComputerName $machine -ErrorAction SilentlyContinue -Scriptblock {return $psversiontable.psversion.major}
+                $osVersion = (Get-WmiObject Win32_OperatingSystem).caption | Select-String "(\d+)([^\s]+)" -AllMatches | Foreach-Object {$_.Matches.Value}
 
                 if ($null -eq $winRmTest)
                 {
@@ -216,17 +224,16 @@ function Get-StigChecklists
                             if ($machine -eq $env:computername)
                             {
                                 Write-Output "`t`tExecuting local DSC Compliance Scan (Attempt $attemptCount/3)"
-                                $dscResult = Test-DscConfiguration -ReferenceConfiguration $ReferenceConfiguration -ErrorAction Stop
                                 $remoteExecution = $false
+                                $dscResult       = Test-DscConfiguration -ReferenceConfiguration $ReferenceConfiguration -ErrorAction Stop
                             }
                             else
                             {
                                 Write-Output "`t`tExecuting remote DSC Compliance Scan (Attempt $attemptCount/3)"
-                                $dscResult  = Invoke-Command -Computername $machine -ErrorAction Stop -Scriptblock {
+                                $remoteExecution = $true
+                                $dscResult       = Invoke-Command -Computername $machine -ErrorAction Stop -Scriptblock {
                                     Test-DscConfiguration -ReferenceConfiguration "C:\SCAR\MOF\$env:Computername.mof"
                                 }
-
-                                $remoteExecution = $true
                             }
                         }
                         catch
@@ -314,7 +321,47 @@ function Get-StigChecklists
                         }
                         else
                         {
-                            Write-Warning "$machine - No xccdf file provided for $Stigtype"
+                            try 
+                            {
+                                switch -WildCard ($stigType)
+                                {
+                                    "WindowsServer"     { $version = $osVersion }
+                                    "DomainController"  { $version = $osVersion}
+                                    "WindowsClient"     { $version = $osVersion}
+                                    "DotNetFramework"   { $version = '4' }
+                                    "InternetExplorer"  { $version = '11' }
+                                    "Office2016"        { $version = '16'}
+                                    "Office2013"        { $version = '15'}
+                                    "Web*"
+                                    {
+                                        if ($env:computername -eq $machine)
+                                        {
+                                            $iisInfo = Get-ItemProperty HKLM:\SOFTWARE\Microsoft\InetStp\
+                                            $Version = [decimal]"$($iisInfo.MajorVersion).$($iisInfo.MinorVersion)"
+                                        }
+                                        else 
+                                        {
+                                            $Version = Invoke-Command -ComputerName $machine -Scriptblock {
+                                                $iisData = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\InetStp"
+                                                [decimal]$localIisVersion = "$($iisData.MajorVersion).$($iisData.MinorVersion)"
+                                                return $localiisVersion
+                                            }
+                                        }
+                                    }
+                                }
+                                if ("" -ne $version) { $xccdfPath = Get-StigFiles -Rootpath $RootPath -StigType $stigType -Version $version -FileType "Xccdf" -NodeName $machine }
+                                else { $xccdfPath = Get-StigFiles -Rootpath $RootPath -StigType $stigType -FileType "Xccdf" -NodeName $machine }
+                            }
+                            catch
+                            {
+                                $xccdfPath
+                                Write-Output "Unable to find XCCDF file for $StigType"
+                            }
+                        }
+
+                        if (-not (Test-Path $xccdfPath))
+                        {
+                            Write-Warning "$machine - No xccdf file found for $Stigtype"
                             continue
                         }
 
@@ -324,37 +371,81 @@ function Get-StigChecklists
                         }
                         else
                         {
-                            Write-Verbose "$machine - No Manual Check file provided for $Stigtype"
+                            try 
+                            {
+                                switch -WildCard ($stigType)
+                                {
+                                    "WindowsServer"     { $version = $osVersion }
+                                    "DomainController"  { $version = $osVersion}
+                                    "WindowsClient"     { $version = $osVersion}
+                                    "DotNetFramework"   { $version = '4' }
+                                    "InternetExplorer"  { $version = '11' }
+                                    "Office2016"        { $version = '16'}
+                                    "Office2013"        { $version = '15'}
+                                    "Web*"
+                                    {
+                                        if ($env:computername -eq $machine)
+                                        {
+                                            $iisInfo = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\InetStp\"
+                                            $version = [decimal]"$($iisInfo.MajorVersion).$($iisInfo.MinorVersion)"
+                                        }
+                                        else 
+                                        {
+                                            $version = Invoke-Command -ComputerName $machine -Scriptblock {
+                                                $iisData = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\InetStp"
+                                                [decimal]$localIisVersion = "$($iisData.MajorVersion).$($iisData.MinorVersion)"
+                                                return $localiisVersion
+                                            }
+                                        }
+                                    }
+                                }
+                                if ("" -ne $version) { $manualCheckFile = Get-StigFiles -Rootpath $RootPath -StigType $stigType -Version $version -FileType "ManualChecks" -NodeName $machine }
+                                else { $manualCheckFile = Get-StigFiles -Rootpath $RootPath -StigType $stigType -FileType "ManualChecks" -NodeName $machine }
+                            }
+                            catch
+                            {
+                                Write-Output "Unable to find ManualCheck file for $StigType" 
+                            }
                         }
 
                         if ($remoteExecution)
                         {
-                            Write-Output "`t`t`tSTIG Checklist - $stigType"
+                            Write-Output "`t`t`tRemote STIG Checklist - $stigType"
                             try
                             {
                                 if (Test-Path $xccdfPath)
                                 {
-                                    $remoteXccdfPath        = (Copy-Item -Path $xccdfPath -Passthru -Destination "\\$machine\C$\Scar\STIG Data\Xccdfs" -Container -Force -Confirm:$False -erroraction Stop).fullName.Replace("\\$machine\C$\","C:\")
+                                    $remoteXccdfPath = (Copy-Item -Path $xccdfPath -Passthru -Destination "\\$machine\C$\Scar\STIG Data\Xccdfs" -Force -Confirm:$False -ErrorAction Stop).FullName.Replace("\\$machine\C$\","C:\")
                                 }
 
-                                $remoteCklPath          = "C:\SCAR\STIG Checklists"
+                                $remoteCklPath = "C:\SCAR\STIG Checklists"
 
-                                if ($null -ne $manualCheckFile)
+                                if ('' -ne $manualCheckFile)
                                 {
-                                    $remoteManualCheckFile  = (Copy-Item -Path $ManualCheckFile -Passthru -Destination "\\$machine\C$\Scar\STIG Data\ManualChecks" -Container -Force -Confirm:$False).FullName.Replace("\\$machine\C$\","C:\")
+                                    $remoteManualCheckFile  = (Copy-Item -Path $ManualCheckFile -Passthru -Destination "\\$machine\C$\Scar\STIG Data\ManualChecks" -Force -Confirm:$False).FullName.Replace("\\$machine\C$\","C:\")
                                 }
 
-                                $remoteCklJob = Invoke-Command -ComputerName $machine -AsJob -ArgumentList $remoteXccdfPath,$remoteManualCheckFile,$remoteCklPath,$dscResult,$machineFolder,$stigType -ScriptBlock {
+                                $remoteCklJob = Invoke-Command -ComputerName $machine -AsJob -ArgumentList $remoteXccdfPath,$remoteManualCheckFile,$remoteCklPath,$dscResult,$machineFolder,$stigType,$enclave -ScriptBlock {
                                     param(
                                         [Parameter(Position=0)]$remoteXccdfPath,
                                         [Parameter(Position=1)]$remoteManualCheckFile,
                                         [Parameter(Position=2)]$remoteCklPath,
                                         [Parameter(Position=3)]$dscResult,
                                         [Parameter(Position=4)]$machineFolder,
-                                        [Parameter(Position=5)]$stigType
+                                        [Parameter(Position=5)]$stigType,
+                                        [Parameter(Position=6)]$enclave
                                     )
-                                    Import-Module -Name "C:\Program Files\WindowsPowershell\Modules\PowerSTIG\*\powerstig.psm1"
-                                    Import-Module -Name "C:\Program Files\WindowsPowershell\Modules\StigRepo\*\module\StigRepo.psm1"
+                                    try
+                                    {
+                                        Import-Module PowerSTIG -ErrorAction 'Stop'
+                                        Import-Module StigRepo -ErrorAction 'Stop'
+                                    }
+                                    catch
+                                    {
+                                        Write-Output "`tRequired Modules are not installed on the target System."
+                                        Write-Output "`tRun Sync-DscModules from the Stig Repository to install them."
+                                        exit
+                                    }
 
                                     $params = @{
                                         xccdfPath       = $remotexccdfPath
@@ -362,7 +453,7 @@ function Get-StigChecklists
                                         DscResult       = $dscResult
                                         Enclave         = $Enclave
                                     }
-                                    if ($null -ne $remoteManualCheckFile)
+                                    if ('' -ne $remoteManualCheckFile)
                                     {
                                         $params += @{ManualCheckFile = $remoteManualCheckFile}
                                     }
@@ -377,30 +468,30 @@ function Get-StigChecklists
                         }
                         else
                         {
-                            Write-Output "`t`t`tSTIG Checklist - $stigType"
+                            Write-Output "`t`t`tLocal STIG Checklist - $stigType"
                             try
                             {
-                                $xccdfPath        = (Copy-Item -Path $xccdfPath -Passthru -Destination "C:\ScarData\STIG Data\Xccdfs" -Container -Force -Confirm:$False).FullName
-                                $cklPath          = "C:\SCARData\STIG Checklists\$machine-$stigType.ckl"
+                                $localXccdfPath = (Copy-Item -Path $xccdfPath -Passthru -Destination "C:\ScarData\STIG Data\Xccdfs" -Force -Confirm:$False).FullName
+                                $cklPath        = "C:\SCARData\STIG Checklists\$machine-$stigType.ckl"
 
-                                if ($null -ne $manualCheckFile)
+                                if ('' -ne $manualCheckFile)
                                 {
-                                    $remoteManualCheckFile  = (Copy-Item -Path $ManualCheckFile -Destination "C:\ScarData\STIG Data\ManualChecks" -Container -Force -Confirm:$False).FullName
+                                    $localManualCheckFile = (Copy-Item -Path $ManualCheckFile -Destination "C:\ScarData\STIG Data\ManualChecks" -Passthru -Force -Confirm:$False).FullName
                                 }
 
                                 $params = @{
-                                    XccdfPath       = $xccdfPath
+                                    XccdfPath       = $localXccdfPath
                                     OutputPath      = $cklPath
                                     DSCResult       = $dscResult
                                     Enclave         = $Enclave
                                 }
 
-                                if ($null -ne $ManualCheckFile)
+                                if ('' -ne $ManualCheckFile)
                                 {
-                                    $params += @{ManualCheckFile = $ManualCheckFile}
+                                    $params += @{ManualCheckFile = $localManualCheckFile}
                                 }
 
-                                Get-StigChecklist @params -ErrorAction SilentlyContinue
+                                Get-StigChecklist @params
                             }
                             catch
                             {
@@ -530,32 +621,37 @@ function Get-StigCheckList
 {
     <#
     .SYNOPSIS
-        Automatically creates a Stig Viewer checklist from the DSC results or
-        compiled MOF
+    Automatically creates a Stig Viewer checklist from the DSC results or
+    compiled MOF
 
     .PARAMETER ReferenceConfiguration
-        The MOF that was compiled with a PowerStig composite
+    The MOF that was compiled with a PowerStig composite
 
     .PARAMETER DscResult
-        The results of Test-DscConfiguration
+    The results of Test-DscConfiguration
+
+    .PARAMETER DscResult
+    The results of Test-DscConfiguration
 
     .PARAMETER XccdfPath
-        The path to the matching xccdf file. This is currently needed since we
-        do not pull add xccdf data into PowerStig
+    The path to the matching xccdf file. This is currently needed since we
+    do not pull add xccdf data into PowerStig
 
     .PARAMETER OutputPath
-        The location you want the checklist saved to
+    The location you want the checklist saved to
 
     .PARAMETER ManualCheckFile
-        Location of a psd1 file containing the input for Vulnerabilities unmanaged via DSC/PowerSTIG.
-
+    Location of a psd1 file containing the input for Vulnerabilities unmanaged via DSC/PowerSTIG.
+    
+    .PARAMETER NoMof
+    Used if generating Checklist for networking devices or other systems not supported by PowerSTIG
+    
     .EXAMPLE
-        Get-StigChecklist -ReferenceConfiguration $referenceConfiguration -XccdfPath $xccdfPath -OutputPath $outputPath
-
-    .EXAMPLE
-        Get-StigChecklist -ReferenceConfiguration $referenceConfiguration -ManualCheckFile "C:\Stig\ManualChecks\2012R2-MS-1.7.psd1" -XccdfPath $xccdfPath -OutputPath $outputPath
-        Get-StigChecklist -ReferenceConfiguration $referenceConfiguration -ManualCheckFile $manualCheckFilePath -XccdfPath $xccdfPath -OutputPath $outputPath
+    Get-StigChecklist -ReferenceConfiguration $referenceConfiguration -XccdfPath $xccdfPath -OutputPath $outputPath
+    Get-StigChecklist -ReferenceConfiguration $referenceConfiguration -ManualCheckFile "C:\Stig\ManualChecks\2012R2-MS-1.7.psd1" -XccdfPath $xccdfPath -OutputPath $outputPath
+    Get-StigChecklist -ReferenceConfiguration $referenceConfiguration -ManualCheckFile $manualCheckFilePath -XccdfPath $xccdfPath -OutputPath $outputPath
     #>
+
     [CmdletBinding()]
     [OutputType([xml])]
     param
@@ -592,6 +688,22 @@ function Get-StigCheckList
         [string]
         $Enclave = "Unclassified"
     )
+    
+    # Import PowerSTIG Checklist Functions
+    try
+    {
+        $powerStigPath   = Split-Path -Parent -Path (Get-Module PowerSTIG).Path
+        $cklHelperPath   = (Resolve-Path -Path "$powerStigPath\Module\Stig\Functions.Checklist.ps1" -ErrorAction 'Stop').Path
+        $xccdfHelperPath = (Resolve-Path -Path "$powerStigPath\Module\Common\Function.Xccdf.ps1" -ErrorAction 'Stop').Path
+        . $cklHelperPath
+        . $xccdfHelperPath
+    }
+    catch
+    {
+        Write-Output "`tUnable to import STIG Checklist Functions from PowerSTIG."
+        throw $_
+        continue
+    }
 
     # Validate parameters before continuing
     if ($ManualCheckFile)
@@ -615,7 +727,7 @@ function Get-StigCheckList
         }
 
         $MofString = Get-Content -Path $ReferenceConfiguration -Raw
-        $TargetNode = Get-TargetNodeFromMof($MofString)
+        $hostName  = Get-TargetNodeFromMof($MofString)
 
     }
     elseif ($PSCmdlet.ParameterSetName -eq 'result')
@@ -625,42 +737,13 @@ function Get-StigCheckList
         {
             throw 'Passed in $DscResult parameter is null. Please provide a valid result using Test-DscConfiguration.'
         }
-        $TargetNode = $DscResult.PSComputerName
+        $hostName = $DscResult.PSComputerName
     }
     elseif ($PSCmdlet.ParameterSetName -eq 'NoMof')
     {
-        $SystemFile   = (Resolve-Path "$RootPath\Systems\*\$machine*").path
-        $systemData       = Invoke-Expression (Get-Content $SystemFile | Out-String)
-        $targetNode     = $NodeName
-    }
-    $TargetNodeType = Get-TargetNodeType($TargetNode)
-
-    switch ($TargetNodeType)
-    {
-        "MACAddress"
-        {
-            $HostnameMACAddress = $TargetNode
-            Break
-        }
-        "IPv4Address"
-        {
-            $HostnameIPAddress = $TargetNode
-            Break
-        }
-        "IPv6Address"
-        {
-            $HostnameIPAddress = $TargetNode
-            Break
-        }
-        "FQDN"
-        {
-            $HostnameFQDN = $TargetNode
-            Break
-        }
-        default
-        {
-            $Hostname = $TargetNode
-        }
+        $systemFile   = (Resolve-Path "$RootPath\Systems\*\$machine*").path
+        $systemData   = Invoke-Expression (Get-Content $systemFile | Out-String)
+        $hostName   = $NodeName
     }
 
     $xmlWriterSettings = [System.Xml.XmlWriterSettings]::new()
@@ -674,8 +757,11 @@ function Get-StigCheckList
     #region ASSET
 
     $writer.WriteStartElement("ASSET")
+    
+    $hostName  = $machine
     try
     {
+        $osVersion = (Get-WmiObject Win32_OperatingSystem -ComputerName $hostName -erroraction silentlycontinue).caption
         $IPAddress  = (Get-NetIPAddress -AddressFamily IPV4 | Where-Object { $_.IpAddress -notlike "127.*" } | Select-Object -First 1).IPAddress
         $MACAddress = (Get-NetAdapter | Where-Object {$_.Status -eq "Up"} | Select-Object MacAddress | Select-Object -First 1).MacAddress
         $filter     = "(&(objectCategory=computer)(objectClass=computer)(cn=$env:computername))"
@@ -689,7 +775,6 @@ function Get-StigCheckList
         }
     }
 
-    $osVersion = (Get-WmiObject Win32_OperatingSystem -ComputerName $hostName -erroraction silentlycontinue).caption
 
     switch -wildcard ($osVersion)
     {
@@ -982,6 +1067,33 @@ function Get-StigCheckList
 
 function Get-StigFiles
 {
+    <#
+    .SYNOPSIS
+    Finds the paths within the $RootPath\Resources\StigData\ folder for Xccdfs, OrgSettings, and ManualCheck files when building 
+    new system data.
+    
+    .PARAMETER RootPath
+    Path to the root of the SCAR repository/codebase.
+
+    .PARAMETER FileType
+    Type of file being searched for. 
+    Can be set to Xccdf, ManualChecks, or OrgSettings
+
+    .PARAMETER StigType
+    Type of STIG being searched for. Examples: WindowsServer, DomainController, DotNetFrameWork, etc.
+
+    .PARAMETER Version
+    Version for various StigTypes. 
+    Example: For the WindowsServer/DomainController STIGs, $Version should be set to the OSVersion of the targetted System
+
+    .PARAMETER NodeName
+    Used to run Invoke-Command to gather data for various Stig Types such as WebServer/WebSite to get a list of WebSites
+
+    .EXAMPLE
+    Get-StigFiles -StigType 'WindowsServer -FileType 'xccdf' -Version "2016"
+
+    #>
+
     param(
 
     [Parameter()]
@@ -990,6 +1102,11 @@ function Get-StigFiles
 
     [Parameter(Mandatory=$true)]
     [string]
+    [ValidateSet(
+    "Xccdf",
+    "OrgSettings",
+    "ManualChecks"
+    )]
     $FileType,
 
     [Parameter(Mandatory=$true)]
@@ -1037,72 +1154,60 @@ function Get-StigFiles
                         {
                             if     ($StigType -eq 'WindowsServer')    {$xccdfs = (Get-ChildItem -Path "$xccdfContainer\*.xml" | Where-Object Name -Notlike "*DC*").Name}
                             elseif ($StigType -eq 'DomainController') {$xccdfs = (Get-ChildItem -Path "$xccdfContainer\*.xml" | Where-Object Name -Like "*DC*").Name}
-                            break
                         }
-                        "*2016*" {$xccdfs = (Get-ChildItem -Path "$xccdfContainer\*$osVersion`_STIG*.xml").Name ; break }
-                        "*2019*" {$xccdfs = (Get-ChildItem -Path "$xccdfContainer\*$osVersion`_STIG*.xml").Name ; break }
+                        "*2016*" {$xccdfs = (Get-ChildItem -Path "$xccdfContainer\*$osVersion`_STIG*.xml").Name}
+                        "*2019*" {$xccdfs = (Get-ChildItem -Path "$xccdfContainer\*$osVersion`_STIG*.xml").Name}
                     }
-                    break
                 }
                 "WindowsClient"
                 {
                     $xccdfContainer     = (Resolve-Path -Path "$xccdfArchive\Windows.Client" -ErrorAction SilentlyContinue).Path
                     $xccdfs             = (Get-ChildItem -Path "$xccdfContainer\*.xml").name
-                    break
                 }
                 "DotNetFramework"
                 {
                     $xccdfContainer     = (Resolve-Path -Path "$xccdfArchive\DotNet" -ErrorAction SilentlyContinue).Path
                     $xccdfs             = (Get-ChildItem -Path "$xccdfContainer\*.xml" | Where-Object { $_.name -like "*$Version*STIG*Manual-xccdf.xml"}).name
-                     break
                 }
                 "InternetExplorer"
                 {
                     $xccdfContainer     = (Resolve-Path -Path "$xccdfArchive\$StigType" -ErrorAction SilentlyContinue).Path
                     $xccdfs             = (Get-ChildItem -Path "$xccdfContainer\*.xml" | Where-Object { $_.name -like "*xccdf.xml"}).name
-                    break
                 }
                 "WebServer"
                 {
                     $xccdfContainer     = (Resolve-Path -Path "$xccdfArchive\Web Server" -ErrorAction SilentlyContinue).Path
                     $xccdfs             = (Get-ChildItem -Path "$xccdfContainer\*.xml" | Where-Object { $_.name -like "*$($Version.replace(".","-"))*Server*xccdf.xml"}).name
-                    break
                 }
                 "WebSite"
                 {
                     $xccdfContainer     = (Resolve-Path -Path "$xccdfArchive\Web Server" -ErrorAction SilentlyContinue).Path
                     $xccdfs             = (Get-ChildItem -Path "$xccdfContainer\*.xml" | Where-Object { $_.name -like "*$($Version.replace(".","-"))*Site*xccdf.xml"}).name
-                    break
                 }
                 "FireFox"
                 {
                     $xccdfContainer     = (Resolve-Path -Path "$xccdfArchive\browser" -ErrorAction SilentlyContinue).Path
                     $xccdfs             = (Get-ChildItem -Path "$xccdfContainer\*.xml" | Where-Object { $_.name -like "*FireFox*xccdf.xml"}).name
-                    break
                 }
                 "Edge"
                 {
                     $xccdfContainer     = (Resolve-Path -Path "$xccdfArchive\Edge" -ErrorAction SilentlyContinue).Path
                     $xccdfs             = (Get-ChildItem -Path "$xccdfContainer\*.xml" | Where-Object { $_.name -like "*edge*xccdf.xml"}).name
-                    break
                 }
                 "Chrome"
                 {
                     $xccdfContainer     = (Resolve-Path -Path "$xccdfArchive\Chrome" -ErrorAction SilentlyContinue).Path
                     $xccdfs             = (Get-ChildItem -Path "$xccdfContainer\*.xml" | Where-Object { $_.name -like "*chrome*xccdf.xml"}).name
-                    break
                 }
                 "Adobe"
                 {
                     $xccdfContainer     = (Resolve-Path -Path "$xccdfArchive\adobe" -ErrorAction SilentlyContinue).Path
                     $xccdfs             = (Get-ChildItem -Path "$xccdfContainer\*.xml" | Where-Object { $_.name -like "*adobe*xccdf.xml"}).name
-                    break
                 }
                 "McAfee"
                 {
                     $xccdfContainer     = (Resolve-Path -Path "$xccdfArchive\$StigType" -ErrorAction SilentlyContinue).Path
                     $xccdfs             = (Get-ChildItem -Path "$xccdfContainer\*.xml" | Where-Object { $_.name -like "*McAfee*xccdf.xml"}).name
-                    break
                 }
                 "Office*"
                 {
@@ -1110,43 +1215,36 @@ function Get-StigFiles
                     $officeVersion      = $stigType.split('_')[0].Replace('Office',"")
                     $xccdfContainer     = (Resolve-Path -Path "$xccdfArchive\Office" -ErrorAction SilentlyContinue).Path
                     $xccdfs             = (Get-ChildItem -Path "$xccdfContainer\*$officeApp*.xml" | Where-Object { $_.name -like "*$officeversion*"}).name
-                    break
                 }
                 "OracleJRE"
                 {
                     $xccdfContainer     = (Resolve-Path -Path "$xccdfArchive\$StigType" -ErrorAction SilentlyContinue).Path
                     $xccdfs             = (Get-ChildItem -Path "$xccdfContainer\*.xml" | Where-Object { $_.name -like "*Oracle*JRE*$version*xccdf.xml"}).name
-                    break
                 }
                 "WindowsDefender"
                 {
                     $xccdfContainer     = (Resolve-Path -Path "$xccdfArchive\Windows.Defender" -ErrorAction SilentlyContinue).Path
                     $xccdfs             = (Get-ChildItem -Path "$xccdfContainer\*.xml" | Where-Object { $_.name -like "*Windows*Defender*xccdf.xml"}).name
-                    break
                 }
                 "WindowsFirewall"
                 {
                     $xccdfContainer     = (Resolve-Path -Path "$xccdfArchive\Windows.Firewall" -ErrorAction SilentlyContinue).Path
                     $xccdfs             = (Get-ChildItem -Path "$xccdfContainer\*.xml" | Where-Object { $_.name -like "*Windows*Firewall*xccdf.xml"}).name
-                    break
                 }
                 "WindowsDNSServer"
                 {
                     $xccdfContainer     = (Resolve-Path -Path "$xccdfArchive\Windows.Dns" -ErrorAction SilentlyContinue).Path
                     $xccdfs             = (Get-ChildItem -Path "$xccdfContainer\*.xml" | Where-Object { $_.name -like "*xccdf.xml"}).name
-                    break
                 }
                 "SqlServerInstance"
                 {
                     $xccdfContainer     = (Resolve-Path -Path "$xccdfArchive\SQL Server" -ErrorAction SilentlyContinue).Path
                     $xccdfs             = (Get-ChildItem -Path "$xccdfContainer\*.xml" | Where-Object { $_.name -like "*SQL*$Version*Instance*xccdf.xml"}).name
-                    break
                 }
                 "SqlServerDatabase"
                 {
                     $xccdfContainer     = (Resolve-Path -Path "$xccdfArchive\SQL Server" -ErrorAction SilentlyContinue).Path
                     $xccdfs             = (Get-ChildItem -Path "$xccdfContainer\*.xml" | Where-Object { $_.name -like "*SQL*$version*Database*xccdf.xml"}).name
-                    break
                 }
             }
             $stigVersions       = $xccdfs | Select-String "V(\d+)R(\d+)" -AllMatches | Foreach-Object {$_.Matches.Value}
@@ -1163,80 +1261,63 @@ function Get-StigFiles
                     $osVersion              = $version.replace('R2','')
                     $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\Windows.Server.$Version" -ErrorAction SilentlyContinue).Path
                     $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object {$_.name -like "*$osVersion*MS*.psd1"}).BaseName
-                    break
                 }
                 "DomainController"
                 {
-                    $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\Windows`.Server`.$version" -ErrorAction SilentlyContinue).Path
+                    $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\Windows.Server.$Version" -ErrorAction SilentlyContinue).Path
                     $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object {$_.name -like "*$version*DC*.psd1"}).basename
-                    $stigVersions           = $manualCheckFiles | Select-String "(\d+)R(\d+)" -AllMatches | Foreach-Object {$_.Matches.Value}
-                    $latestVersion          = ($stigVersions | Measure-Object -Maximum).Maximum
-                    $manualCheckFileName    = $manualCheckFiles | Where-Object { $_ -like "*WindowsServer*$latestVersion*" }
-                    $stigFilePath           = "$manualCheckContainer\$manualCheckFileName.psd1"
-                    break
                 }
                 "WindowsClient"
                 {
-                    $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\WindowsClient" -ErrorAction SilentlyContinue).Path
+                    $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\Windows.Client" -ErrorAction SilentlyContinue).Path
                     $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer).basename 
-                    break
                 }
                 "DotNetFramework"
                 {
-                    "$manualCheckFolder\Dotnet"
                     $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\Dotnet" -ErrorAction SilentlyContinue).Path
                     $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*Dot*Net*ManualChecks.psd1"}).basename 
-                    break
                 }
                 "InternetExplorer"
                 {
                     $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\InternetExplorer" -ErrorAction SilentlyContinue).Path
                     $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*IE*11*ManualChecks.psd1"}).basename 
-                    break
                 }
                 "WebServer"
                 {
                     $iisVersion = $version.replace(".","-")
                     $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\WebServer" -ErrorAction SilentlyContinue).Path
                     $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*$iisVersion*-ManualChecks.psd1"}).basename 
-                    break
                 }
                 "WebSite"
                 {
                     $iisVersion = $version.replace(".","-")
                     $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\WebSite" -ErrorAction SilentlyContinue).Path
                     $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*$iisVersion*ManualChecks.psd1"}).basename 
-                    break
                 }
                 "FireFox"
                 {
                     $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\FireFox" -ErrorAction SilentlyContinue).Path
                     $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*FireFox*ManualChecks.psd1"}).basename 
-                    break
                 }
                 "Edge"
                 {
                     $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\Edge" -ErrorAction SilentlyContinue).Path
                     $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*Edge*ManualChecks.psd1"}).basename 
-                    break
                 }
                 "Chrome"
                 {
                     $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\Chrome" -ErrorAction SilentlyContinue).Path
                     $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*Chrome*ManualChecks.psd1"}).basename 
-                    break
                 }
                 "Adobe"
                 {
                     $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\adobe" -ErrorAction SilentlyContinue).Path
                     $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*adobe*ManualChecks.psd1"}).basename 
-                    break
                 }
                 "McAfee"
                 {
                     $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\McAfee" -ErrorAction SilentlyContinue).Path
                     $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*McAfee*ManualChecks.psd1"}).basename 
-                    break
                 }
                 "Office2016*"
                 {
@@ -1248,7 +1329,6 @@ function Get-StigFiles
                     $latestVersion          = ($stigVersions | Measure-Object -Maximum).Maximum
                     $manualCheckFileName    = $manualCheckFiles | Where-Object { $_ -like "*$officeApp*$latestVersion*" }
                     $stigFilePath           = "$manualCheckContainer\$manualCheckFileName.psd1" 
-                    break
                 }
                 "Office2013*"
                 {
@@ -1260,43 +1340,36 @@ function Get-StigFiles
                     $latestVersion          = ($stigVersions | Measure-Object -Maximum).Maximum
                     $manualCheckFileName    = $manualCheckFiles | Where-Object { $_ -like "*$officeApp*$latestVersion*" }
                     $stigFilePath           = "$manualCheckContainer\$manualCheckFileName.psd1" 
-                    break
                 }
                 "OracleJRE"
                 {
                     $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\OracleJRE" -ErrorAction SilentlyContinue).Path
                     $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*OracleJRE*$version*.psd1"}).basename 
-                    break
                 }
                 "WindowsDefender"
                 {
                     $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\Windows.Defender" -ErrorAction SilentlyContinue).Path
                     $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*Windows*Defender*ManualChecks.psd1"}).basename 
-                    break
                 }
                 "WindowsFirewall"
                 {
                     $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\Windows.Firewall" -ErrorAction SilentlyContinue).Path
                     $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*Windows*Firewall*ManualChecks.psd1"}).basename 
-                    break
                 }
                 "WindowsDNSServer"
                 {
                     $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\Windows.Dns" -ErrorAction SilentlyContinue).Path
-                    $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*Domain*Naming*Sytem*ManualChecks.psd1"}).basename 
-                    break
+                    $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*Domain*Name*System*ManualChecks.psd1"}).basename
                 }
                 "SqlServerInstance"
                 {
                     $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\SqlServer" -ErrorAction SilentlyContinue).Path
                     $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*SQL*$version*Database*ManualChecks.psd1"}).basename 
-                    break
                 }
                 "SqlServerDatabase"
                 {
                     $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\SqlServer" -ErrorAction SilentlyContinue).Path
                     $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*SQL*$version*Database*ManualChecks.psd1"}).basename 
-                    break
                 }
             }
 
@@ -1314,23 +1387,23 @@ function Get-StigFiles
 
             switch -wildcard ($stigType)
             {
-                "WindowsServer"     { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType-$osVersion-MS*"}).name ; break }
-                "WindowsClient"     { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -Like "*$StigType*" }).name ; break }
-                "DotNetFramework"   { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType-$version*"}).name ; break }
-                "InternetExplorer"  { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType-$version*"}).name ; break }
-                "WebServer"         { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "IISServer*$version*"}).name ; break }
-                "WebSite"           { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "IISSite*$version*"}).name ; break }
-                "Edge"              { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "*$stigType*"}).name ; break }
-                "Chrome"            { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "*$stigType*"}).name ; break }
-                "McAfee"            { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType-$version*"}).name ; break }
-                "OracleJRE"         { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType-$version*"}).name ; break }
-                "WindowsDefender"   { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType-$version*"}).name ; break }
-                "WindowsFirewall"   { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "*$stigType*"}).name ; break }
-                "WindowsDNSServer"  { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType*"}).name ; break }
-                "OracleJRE"         { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType-$version"}).name ; break }
-                "DomainController"  { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "WindowsServer-$version-DC*"}).name ; break }
-                "FireFox"           { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "*firefox*"}).name ; break }
-                "Adobe"             { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType-*.xml"}).name ; break }
+                "WindowsServer"     { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType-$osVersion-MS*"}).name}
+                "WindowsClient"     { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -Like "*$StigType*" }).name}
+                "DotNetFramework"   { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType-$version*"}).name}
+                "InternetExplorer"  { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType-$version*"}).name}
+                "WebServer"         { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "IISServer*$version*"}).name}
+                "WebSite"           { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "IISSite*$version*"}).name}
+                "Edge"              { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "*$stigType*"}).name}
+                "Chrome"            { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "*$stigType*"}).name}
+                "McAfee"            { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType-$version*"}).name}
+                "OracleJRE"         { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType-$version*"}).name}
+                "WindowsDefender"   { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType-$version*"}).name}
+                "WindowsFirewall"   { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "*$stigType*"}).name}
+                "WindowsDNSServer"  { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType*"}).name}
+                "OracleJRE"         { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType-$version"}).name}
+                "DomainController"  { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "WindowsServer-$version-DC*"}).name}
+                "FireFox"           { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "*firefox*"}).name}
+                "Adobe"             { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType-*.xml"}).name}
                 "Office*"
                 {
                     $officeApp              = $stigType.split('_')[1]
@@ -1340,7 +1413,6 @@ function Get-StigFiles
                     $latestVersion          = ($stigVersions | Measure-Object -Maximum).Maximum
                     $orgSettingsFileName    = $orgSettingsFiles | Where-Object { $_ -like "*$officeApp*$officeVersion*$latestVersion*.xml"}
                     $stigFilePath           = "$orgSettingsFolder\$orgSettingsFileName"
-                    break
                 }
             }
 
@@ -1375,6 +1447,24 @@ function Get-StigFiles
 
 function Get-ApplicableStigs
 {
+    <#
+    .SYNOPSIS
+    Gets list of applicable STIGs for a specified system by running Invoke-Command and discovering installed roles, software, and operatingsystem
+    
+    .PARAMETER RootPath
+    Path to the root of the SCAR repository/codebase.
+
+    .PARAMETER ComputerName
+    Active Directory ComputerName of the targetted system
+
+    .PARAMETER LocalHost
+    Targets the localhost for Applicable STIG Discovery
+
+    .EXAMPLE
+    Get-ApplicableStigs -Rootpath "C:\StigRepo" -ComputerName "FileServer-01"
+
+    #>
+    
     [cmdletbinding()]
     param(
 
@@ -1498,6 +1588,21 @@ function Get-ApplicableStigs
 
 function Get-ManualCheckFileFromXccdf
 {
+    <#
+    .SYNOPSIS
+    Generates ManualChecks from a STIG XCCDF file by identifying each Vulnerabiliy ID within the given XCCDF.
+    
+    .PARAMETER XccdfPath
+    Path to the STIG Xccdf File
+
+    .PARAMETER ManualCheckPath
+    Location where you want the ManualCheck file to be generated.
+
+    .EXAMPLE
+    Get-ManualCheckFileFromXccdf -XccdfPath "C:\CiscoStigs\U_Cisco_IOS_Router_NDM_STIG_V2R1_Manual-xccdf.xml" -ManualCheckPath "C:\ManualCheckFiles"
+
+    #>
+    
     [cmdletBinding()]
     param (
 
