@@ -1291,7 +1291,8 @@ function New-SystemData
         }
         elseif ($ou -eq "Computers")
         {
-            $targetMachines = (Get-ADComputer -Properties OperatingSystem -filter {OperatingSystem -like "*Windows 10*"} ).name
+            $computersContainer = (Get-ADDomain).ComputersContainer
+            $targetMachines = (Get-ADComputer -SearchBase $computersContainer -Properties OperatingSystem -filter {OperatingSystem -like "*Windows 10*"} ).name
             $ouFolder = "$SystemsPath\Windows 10"
         }
         else
@@ -2129,16 +2130,12 @@ function Get-StigFiles
                 }
                 "DomainController"
                 {
-                    $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\Windows`.Server`.$version" -ErrorAction SilentlyContinue).Path
+                    $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\Windows.Server.$Version" -ErrorAction SilentlyContinue).Path
                     $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object {$_.name -like "*$version*DC*.psd1"}).basename
-                    $stigVersions           = $manualCheckFiles | Select-String "(\d+)R(\d+)" -AllMatches | Foreach-Object {$_.Matches.Value}
-                    $latestVersion          = ($stigVersions | Measure-Object -Maximum).Maximum
-                    $manualCheckFileName    = $manualCheckFiles | Where-Object { $_ -like "*WindowsServer*$latestVersion*" }
-                    $stigFilePath           = "$manualCheckContainer\$manualCheckFileName.psd1"
                 }
                 "WindowsClient"
                 {
-                    $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\WindowsClient" -ErrorAction SilentlyContinue).Path
+                    $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\Windows.Client" -ErrorAction SilentlyContinue).Path
                     $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer).basename
                 }
                 "DotNetFramework"
@@ -2229,7 +2226,7 @@ function Get-StigFiles
                 "WindowsDNSServer"
                 {
                     $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\Windows.Dns" -ErrorAction SilentlyContinue).Path
-                    $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*Domain*Naming*Sytem*ManualChecks.psd1"}).basename
+                    $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*Domain*Name*System*ManualChecks.psd1"}).basename
                 }
                 "SqlServerInstance"
                 {
