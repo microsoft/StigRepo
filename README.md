@@ -10,22 +10,35 @@ The Stig-Repo module leverages PowerSTIG and Desired State Configuration to buil
 
 SCAR accelerates Azure readiness and ATO/CCRI processes through automated STIG compliance and digital transformation by establishing an infrastructure as code platform that organizations can customize build on top of to quickly establish and deploy Azure baselines.
 
-### Primary Capabilities
+### Get Started with StigRepo
 
-1. Initialize-StigRepo: Builds the STIG Compliance Automation Repository and installs dependencies on the local system
-2. New-SystemData: Scans the Active Directory Environment for targetted systems, determines applicable STIGs, and generates DSC configuration data
-3. Start-DscBuild: Generates DSC Configuration scripts and MOF files for all DSC Nodes
-4. Sync-DscModules: Syncs DSC module dependencies across all DSC Nodes
-5. Set-WinRMConfig: Expands MaxEnvelopSize on all DSC nodes
-6. Get-StigChecklists: Generates STIG Checklists for all applicable STIGs for each DSC Node
-7. Update-StigRepo: Updates/downloads latest dependencies to SCAR Repo and upgrades STIG Data Files
+## Active Directory Infrastructure - Getting Started
 
-### Dependencies
+Execute the seven Powershell commands below to install the StigRepo module, build your Stig Repository, create PowerSTIG configurations, and generate STIG Checklists for Systems joined to an Active Directory Domain.
 
-1. Must be executed from an internet-connected system to install module dependencies
-2. Must be executed from a system with the Active Directory module installed.
-3. DSCSM Leverages PowerSTIG to drive the dynamic DSC configurations included withint he module (installed with Build-Repo or Update-ScarRepo)'
-4. Powershell Version 5.1 or greater
+Prerequisites - WinRM access into the target systems, ActiveDirectory module must be installed, and target systems must be running Powershell version 5.1 or greater.
+
+1. Install-Module StigRepo     # Installs the StigRepo module from the Powershell Gallery.
+2. Initialize-StigRepo         # Builds the STIG Compliance Automation Repository and installs dependencies on the local system
+3. New-SystemData              # Scans the Active Directory Environment for targetted systems, determines applicable STIGs, and generates DSC configuration data
+4. Start-DscBuild              # Generates DSC Configuration scripts and MOF files for all DSC Nodes
+5. Sync-DscModules             # Syncs DSC module dependencies across all DSC Nodes
+6. Set-WinRMConfig             # Expands MaxEnvelopSize on all DSC nodes
+7. Get-StigChecklists          # Generates STIG Checklists for all applicable STIGs for each DSC Node
+
+## Azure Infrastructure - Getting Started
+
+Execute the __ Powershell commands below to install the StigRepo Module, build your Stig Repository, and prepare an Azure Automation account to enforce/report STIG compliance for Azure Infrastructure.
+
+Prerequisites - Powershell session must be connected to an Azure Subscription (Connect-AzAccount) and an Azure Automation account must already exist within the subscription.
+
+1. Install-Module StigRepo # Installs the StigRepo module from the Powershell Gallery.
+2. Initialize-StigRepo # Builds the STIG Compliance Automation Repository and installs dependencies on the local system
+3. New-AzSystemData -ResourceGroupName "VM-RG-Name" # Builds System Data for Azure VMs
+4. Publish-AzAutomationModules -ResourceGroupName "AutomationAcct-RG" -AutomationAccountName "My-AutomationAcct" # Uploads Modules located in "Resources\Modules" folder to an Azure Automation Account
+5. Register-AzAutomationNodes -ResourceGroupName "AutomationAcct-RG" -AutomationAccountName "My-AutomationAcct" # Registers Systems with System Data to an Azure Automation Account
+6. Export-AzDscConfigurations # Generates DSC Configuration Scripts for each SystemData file that are constucted for Azure Automation in the "Artifacts\AzDscConfigs" folder
+7. Import-AzDscConfigurations -ResourceGroupName "AutomationAcct-RG" -AutomationAccountName "My-AutomationAcct" # Imports generated STIG Configurations to Azure Automation Account
 
 ### Release Cycle
 
