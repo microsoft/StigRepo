@@ -26,7 +26,7 @@ Prerequisites - WinRM access into the target systems, ActiveDirectory module mus
 
 ### Azure Infrastructure
 
-Execute the __ Powershell commands below to install the StigRepo Module, build your Stig Repository, and prepare an Azure Automation account to enforce/report STIG compliance for Azure Infrastructure.
+Execute the seven Powershell commands below to install the StigRepo Module, build your Stig Repository, and prepare an Azure Automation account to enforce/report STIG compliance for Azure Infrastructure.
 
 Prerequisites - Powershell session must be connected to an Azure Subscription (Connect-AzAccount) and an Azure Automation account must already exist within the subscription.
 
@@ -34,9 +34,9 @@ Prerequisites - Powershell session must be connected to an Azure Subscription (C
 2. Initialize-StigRepo # Builds the STIG Compliance Automation Repository and installs dependencies on the local system
 3. New-AzSystemData -ResourceGroupName "VM-RG-Name" # Builds System Data for Azure VMs
 4. Publish-AzAutomationModules -ResourceGroupName "AutomationAcct-RG" -AutomationAccountName "My-AutomationAcct" # Uploads Modules located in "Resources\Modules" folder to an Azure Automation Account
-5. Register-AzAutomationNodes -ResourceGroupName "AutomationAcct-RG" -AutomationAccountName "My-AutomationAcct" # Registers Systems with System Data to an Azure Automation Account
-6. Export-AzDscConfigurations # Generates DSC Configuration Scripts for each SystemData file that are constucted for Azure Automation in the "Artifacts\AzDscConfigs" folder
-7. Import-AzDscConfigurations -ResourceGroupName "AutomationAcct-RG" -AutomationAccountName "My-AutomationAcct" # Imports generated STIG Configurations to Azure Automation Account
+5. Export-AzDscConfigurations # Generates DSC Configuration Scripts for each SystemData file that are constucted for Azure Automation in the "Artifacts\AzDscConfigs" folder
+6. Import-AzDscConfigurations -ResourceGroupName "AutomationAcct-RG" -AutomationAccountName "My-AutomationAcct" # Imports generated STIG Configurations to Azure Automation Account
+7. Register-AzAutomationNodes -ResourceGroupName "AutomationAcct-RG" -AutomationAccountName "My-AutomationAcct" # Registers Systems with System Data to an Azure Automation Account
 
 ## Release Cycle
 
