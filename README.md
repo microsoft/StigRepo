@@ -1,8 +1,4 @@
-# StigRepo Module
-
-___
-
-## What is the StigRepo Module?
+# What is the StigRepo Module?
 
 ___
 
@@ -10,9 +6,11 @@ The Stig-Repo module leverages PowerSTIG and Desired State Configuration to buil
 
 SCAR accelerates Azure readiness and ATO/CCRI processes through automated STIG compliance and digital transformation by establishing an infrastructure as code platform that organizations can customize build on top of to quickly establish and deploy Azure baselines.
 
-### Get Started with StigRepo
+## Get Started with StigRepo
 
-## Active Directory Infrastructure - Getting Started
+___
+
+## Active Directory Infrastructure
 
 Execute the seven Powershell commands below to install the StigRepo module, build your Stig Repository, create PowerSTIG configurations, and generate STIG Checklists for Systems joined to an Active Directory Domain.
 
@@ -26,7 +24,7 @@ Prerequisites - WinRM access into the target systems, ActiveDirectory module mus
 6. Set-WinRMConfig             # Expands MaxEnvelopSize on all DSC nodes
 7. Get-StigChecklists          # Generates STIG Checklists for all applicable STIGs for each DSC Node
 
-## Azure Infrastructure - Getting Started
+## Azure Infrastructure
 
 Execute the __ Powershell commands below to install the StigRepo Module, build your Stig Repository, and prepare an Azure Automation account to enforce/report STIG compliance for Azure Infrastructure.
 
@@ -40,15 +38,15 @@ Prerequisites - Powershell session must be connected to an Azure Subscription (C
 6. Export-AzDscConfigurations # Generates DSC Configuration Scripts for each SystemData file that are constucted for Azure Automation in the "Artifacts\AzDscConfigs" folder
 7. Import-AzDscConfigurations -ResourceGroupName "AutomationAcct-RG" -AutomationAccountName "My-AutomationAcct" # Imports generated STIG Configurations to Azure Automation Account
 
-### Release Cycle
+## Release Cycle
 
-StigRepo minor versions will be released on the third Wednesday of each quarter (March, June, September, December ) with possible patch changes released in-between minor releases if/as needed.
+___
 
-StigRepo Version 1.3 Scheduled for release on June 16th, 2021.
+StigRepo minor versions will be released each quarter with possible patch changes released in-between minor releases if/as needed. Submit bugs/feature requests to have fixes/recommended changes implemented into the StigRepo module.
 
-### The STIG Compliance Automation Repository Structure
+### The STIG Repository Structure
 
-SCAR organizes the repository to deploy and document STIGs using the folders listed below:
+The StigRepo module organizes Systems, Configurations, Artifacts, and Resources (SCAR) into the folder structure below:
 
 1. Systems: Folders for each identified Organizational Unit in Active Directory and a Powershell Data file for each identified system.
 2. Configurations: Dynamic PowerSTIG Configurations for that are customized by paremeters provided within system data files.
