@@ -261,3 +261,4 @@ ___
 * Jake Dean [@JakeDean3631](https://github.com/JakeDean3631)
 * Ken Johnson   [@kenjohnson03](https://github.com/kenjohnson03)
 * Cody Aldrich  [@coaldric](https://github.com/coaldric)
+* Will Wellington [@wwellington2](https://github.com/wwellington2)
