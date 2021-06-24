@@ -353,6 +353,35 @@ function New-AzSystemData
                             $null = $configContent.add("`n`t`t`tOSRole               = `"$osRole`"")
                             $null = $configContent.add("`n`t`t`tOsVersion            = `"$osVersion`"")
 
+                            switch -Wildcard ($osVersion)
+                            {
+                                "*2016*"
+                                {
+                                    $null = $configContent.add("`n`t`t`tExceptions = @{")
+                                    $null = $configContent.add("`n`t`t`t    'V-225019' = @{Identity = 'Guests'}")
+                                    $null = $configContent.add("`n`t`t`t    'V-225016' = @{Identity = 'Guests'}")
+                                    $null = $configContent.add("`n`t`t`t    'V-225018' = @{Identity = 'Guests'}")
+                                    $null = $configContent.add("`n`t`t`t}")
+                                    $null = $configContent.add("`n`t`t`tOrgSettings = @{")
+                                    $null = $configContent.add("`n`t`t`t    'V-225015' = @{Identity     = 'Guests'}")
+                                    $null = $configContent.add("`n`t`t`t    'V-225027' = @{OptionValue  = 'xGuest'}")
+                                    $null = $configContent.add("`n`t`t`t    'V-225063' = @{ValueData      = '2'}")
+                                    $null = $configContent.add("`n`t`t`t}")
+                                }
+                                "*2019*"
+                                {
+                                    $null = $configContent.add("`n`t`t`tExceptions = @{")
+                                    $null = $configContent.add("`n`t`t`t    'V-205733' = @{Identity = 'Guests'}")
+                                    $null = $configContent.add("`n`t`t`t    'V-205672' = @{Identity = 'Guests'}")
+                                    $null = $configContent.add("`n`t`t`t    'V-205673' = @{Identity = 'Guests'}")
+                                    $null = $configContent.add("`n`t`t`t    'V-205675' = @{Identity = 'Guests'}")
+                                    $null = $configContent.add("`n`t`t`t}")
+                                    $null = $configContent.add("`n`t`t`tOrgSettings = @{")
+                                    $null = $configContent.add("`n`t`t`t    'V-205910' = @{OptionValue = 'xGuest'}")
+                                    $null = $configContent.add("`n`t`t`t    'V-205717' = @{ValueData   = '2'}")
+                                    $null = $configContent.add("`n`t`t`t}")
+                                }
+                            }
                             if ($IncludeFilePaths)
                             {
                                 $null = $configContent.add("`n`t`t`txccdfPath            = `"$($osStigFiles.xccdfPath)`"")
@@ -367,6 +396,17 @@ function New-AzSystemData
                             $null = $configContent.add("`n`n`t`tPowerSTIG_WindowsClient =")
                             $null = $configContent.add("`n`t`t@{")
                             $null = $configContent.add("`n`t`t`tOSVersion            = `"10`"")
+                            $null = $configContent.add("`n`t`t`tSkipRule             = @('V-220740','V-220739','V-220741','V-220908')")
+                            $null = $configContent.add("`n`t`t`tOrgSettings          = @{")
+                            $null = $configContent.add("`n`t`t`t    'V-220912' = @{OptionValue = 'xGuest'}")
+                            $null = $configContent.add("`n`t`t`t}")
+                            $null = $configContent.add("`n`t`t`tException            = @{")
+                            $null = $configContent.add("`n`t`t`t    'V-220972' = @{Identity = 'Guests'}")
+                            $null = $configContent.add("`n`t`t`t    'V-220968' = @{Identity = 'Guests'}")
+                            $null = $configContent.add("`n`t`t`t    'V-220969' = @{Identity = 'Guests'}")
+                            $null = $configContent.add("`n`t`t`t    'V-220971' = @{Identity = 'Guests'}")
+                            $null = $configContent.add("`n`t`t`t}")
+
                             if ($IncludeFilePaths)
                             {
                                 $null = $configContent.add("`n`t`t`txccdfPath            = `"$($win10StigFiles.xccdfPath)`"")
@@ -455,6 +495,7 @@ function New-AzSystemData
                         {
                             $null = $configContent.add("`n`n`t`tPowerSTIG_WindowsDefender =")
                             $null = $configContent.add("`n`t`t@{")
+                            $null = $configContent.add("`n`t`t`tOrgSettings = @{'V-213450' = @{ValueData = '1' }}")
                             if ($IncludeFilePaths)
                             {
                                 $null = $configContent.add("`n`t`t`txccdfPath            = `"$($winDefenderStigFiles.xccdfPath)`"")
@@ -462,13 +503,13 @@ function New-AzSystemData
                                 $null = $configContent.add("`n`t`t`tManualChecks         = `"$($winDefenderStigFiles.manualChecks)`"")
                                 $null = $configContent.add("`n`t`t}")
                             }
-                            else { $null = $configContent.add("`n`n`t`t}") }
+                            else { $null = $configContent.add("`n`t`t}") }
                         }
                         "WindowsFirewall"
                         {
                             $null = $configContent.add("`n`n`t`tPowerSTIG_WindowsFirewall =")
                             $null = $configContent.add("`n`t`t@{")
-
+                            $null = $configContent.add("`n`t`t`tSkiprule             = @('V-17443', 'V-17442')")
                             if ($IncludeFilePaths)
                             {
                                 $null = $configContent.add("`n`t`t`txccdfPath            = `"$($winFirewallStigFiles.xccdfPath)`"")
@@ -476,7 +517,7 @@ function New-AzSystemData
                                 $null = $configContent.add("`n`t`t`tManualChecks         = `"$($winFirewallStigFiles.manualChecks)`"")
                                 $null = $configContent.add("`n`t`t}")
                             }
-                            else { $null = $configContent.add("`n`n`t`t}") }
+                            else { $null = $configContent.add("`n`t`t}") }
                         }
                         "WindowsDnsServer"
                         {
@@ -1078,7 +1119,11 @@ function Register-AzAutomationNodes
 
         [Parameter()]
         [string]
-        $ConfigurationFrequency = '30',
+        $ConfigurationModeFrequencyMins = '15',
+
+        [Parameter()]
+        [string]
+        $RefreshFrequencyMins = '30',
 
         [Parameter()]
         [string]
@@ -1158,7 +1203,7 @@ function Register-AzAutomationNodes
 
     foreach ($vmName in $vmNames)
     {
-        $vmObject = Get-AzVM -Name $vmName
+        $vmObject = Get-AzVM -Name $vmName -Status
         $null = $virtualMachines.Add($vmObject)
     }
 
@@ -1180,25 +1225,43 @@ function Register-AzAutomationNodes
         Write-OutPut "`n`t$($virtualMachine.Name) - Beginning Registration"
 
         # Check the VM for existing extensions
-        Write-Output "`t`tChecking $($virtualMachine.Name) for existing DSC extension"
-        $dscExtension = Get-AzVmExtension -ResourceGroupName $virtualMachine.ResourceGroupName -VMName $virtualMachine.Name | Where-Object ExtensionType -eq 'DSC'
+        Write-Output "`t`tExisting DSC Extension Validation"
+        $dscExtension = Get-AzVmExtension -ResourceGroupName $virtualMachine.ResourceGroupName -VMName $virtualMachine.Name | Where-Object {$_.ExtensionType -like "*DSC*"}
 
         if ($dscExtension)
         {
+            Write-OutPut "`t`t`tExisting DSC Extension Found"
+
             if ($Force)
             {
                 try
                 {
+                    # Start VM if deallocated
+                    Write-Output "`t`t`tChecking VM Running State"
+                    $vmPowerState = $virtualMachine.PowerState
+                    if ($vmPowerState -ne 'Running')
+                    {
+                        Write-Output "`t`t`tVM is Deallocated - Starting VM"
+                        $null = $virtualMachine | Start-AzVM
+                    }
+                    else
+                    {
+                        Write-Output "Virtual machine is currently running"
+                    }
+
+                    # Remove DSC Extension
                     Write-Output "`t`t`tRemoving `'$($dscExtension.Name)`' from $($virtualMachine.Name)"
                     $null = $dscExtension | Remove-AzVMExtension -Force -Confirm:$false -ErrorAction 'Stop'
+
+                    # Reboot VM
+                    Write-Output "`t`t`tRestarting $($VirtualMachine.Name)"
+                    $null = $virtualMachine | Restart-AzVM
                 }
                 catch
                 {
                     Write-Output "`t`t`tRemoving `'$($dscExtension.Name)`' failed - Remove the extension manually via the Azure Portal."
                     continue
                 }
-
-                Write-Output "`t`t`tRestarting $($VirtualMachine.Name)"
             }
             else
             {
@@ -1215,6 +1278,7 @@ function Register-AzAutomationNodes
 
         # Register Azure Automation Node
         Write-Output "`t`tRegistering $($virtualMachine.Name) to Azure Automation Account - $AutomationAccountName"
+        $existingRegistration
         $configName = 'STIG_' + $virtualMachine.Name.Replace("-","_")
         try
         {
@@ -1225,7 +1289,8 @@ function Register-AzAutomationNodes
                 ResourceGroupName               = $ResourceGroupName
                 AutomationAccountName           = $AutomationAccountName
                 ConfigurationMode               = $ConfigurationMode
-                ConfigurationModeFrequencyMins  = $ConfigurationFrequency
+                ConfigurationModeFrequencyMins  = $ConfigurationModeFrequencyMins
+                RefreshFrequencyMins            = $RefreshFrequencyMins
                 RebootNodeIfNeeded              = $RebootIfNeeded
                 ActionAfterReboot               = $ActionAfterReboot
                 AllowModuleOverwrite            = $AllowModuleOverwrite
@@ -1299,9 +1364,10 @@ function Start-AzDscBuild
         $azConfigFile   = New-Item -ItemType File -Path "$azConfigPath\$azConfigName.ps1" -Force
         $systemData     = Invoke-Expression (Get-Content $systemFile | Out-String)
         [array]$configs = $systemData.AppliedConfigurations
+        $nodeName       = $systemData.NodeName
         $azConfigString = "Configuration $($azConfigName)`n{"
         $azConfigString += "`n`tImport-DscResource -ModuleName `'PowerSTIG`'`n"
-        $azConfigString += "`n`tNode `$AllNodes.Where{`$_.NodeName -eq `"$($systemFile.BaseName)`"}.NodeName`n`t{"
+        $azConfigString += "`n`tNode $nodeName`n`t{"
 
         foreach ($resource in $configs.keys)
         {
@@ -1414,4 +1480,9 @@ function Publish-AzDscConfigurations
         }
     }
     Write-Output "Azure Automation import complete"
+}
+
+function Set-AzAutomationNodeConfigs
+{
+
 }
