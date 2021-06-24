@@ -37,7 +37,7 @@ function New-AzSystemData
         [Parameter()]
         [switch]
         $IncludeLCMSettings,
-        
+
         [Parameter()]
         [HashTable]
         $LcmSettings = @{
@@ -67,12 +67,13 @@ function New-AzSystemData
         }
     )
 
-    Write-Output "Starting Azure SystemData Creation"
+    Write-Output "Starting Azure System Data Creation"
     $IncludeFilePaths = $true
     $systemsPath      = (Resolve-Path "$RootPath\Systems").Path
     $resourceGroups   = New-Object System.Collections.ArrayList
     $virtualMachines  = New-Object System.Collections.ArrayList
 
+    Write-Output "`tGetting Virtual Machine Resource Groups"
     if ("" -eq $ResourceGroupName) { Get-AzVM | ForEach-Object { $null = $virtualMachines.Add($_) } }
     else { Get-AzVM -ResourceGroupName $ResourceGroupName | ForEach-Object { $null = $virtualMachines.Add($_) } }
 
@@ -90,6 +91,7 @@ function New-AzSystemData
         foreach ($virtualMachine in $resourceGroupVms)
         {
             Write-Output "`t`tStarting Job - $($virtualMachine.name)"
+            $osType = $virtualMachine.StorageProfile.ImageReference.Offer
             $osVersion = $virtualMachine.StorageProfile.ImageReference.Sku
             $vmName = $virtualMachine.Name
 
@@ -98,6 +100,7 @@ function New-AzSystemData
                 $RootPath           = $using:rootPath
                 $resourceGroup      = $using:resourceGroup
                 $rgFolder           = $using:rgFolder
+                $osType             = $using:osType
                 $osVersion          = $using:osVersion
                 $vmName             = $using:vmName
                 $LcmSettings        = $using:LcmSettings
@@ -105,26 +108,44 @@ function New-AzSystemData
                 $applicableStigs    = New-Object System.Collections.ArrayList
 
                 #region STIG Applicability
-                if ($DomainControllers)
+                switch -wildcard ($osType)
                 {
-                    $osRole = 'DC'
-                    $null = $applicableStigs.add("DomainController")
-                }
-                else
-                {
-                    $osRole = 'MS'
-                    $null = $applicableStigs.add("WindowsServer")
-                }
+                    "*WindowsServer"
+                    {
+                        if ($DomainControllers)
+                        {
+                            $osRole = 'DC'
+                            $null = $applicableStigs.add("DomainController")
+                        }
+                        else
+                        {
+                            $osRole = 'MS'
+                            $null   = $applicableStigs.add("WindowsServer")
+                        }
 
-                $null = $applicableStigs.add("InternetExplorer")
-                $null = $applicableStigs.add("WindowsFirewall")
-                $null = $applicableStigs.add("WindowsDefender")
-                $null = $applicableStigs.add("DotnetFramework")
+                        $null = $applicableStigs.add("InternetExplorer")
+                        $null = $applicableStigs.add("WindowsFirewall")
+                        $null = $applicableStigs.add("WindowsDefender")
+                        $null = $applicableStigs.add("DotnetFramework")
+                    }
+                    "Windows-10"
+                    {
+                        $null = $applicableStigs.add("WindowsClient")
+                        $null = $applicableStigs.add("InternetExplorer")
+                        $null = $applicableStigs.add("WindowsFirewall")
+                        $null = $applicableStigs.add("WindowsDefender")
+                        $null = $applicableStigs.add("DotnetFramework")
+                    }
+                    "RHEL"    {$null = $applicableStigs.add("RHEL")}
+                    "CentOS"  {$null = $applicableStigs.add("CentOS")}
+                    "Ubuntu*" {$null = $applicableStigs.add("Ubuntu")}
+                }
                 #endRegion
 
                 #region Get STIG Files
                 if ($IncludeFilePaths)
                 {
+                    Write-Output "`tFinding STIG Data File Paths"
                     switch -Wildcard ($applicableStigs)
                     {
                         "WindowsServer*"
@@ -341,6 +362,65 @@ function New-AzSystemData
                             }
                             else { $null = $configContent.add("`n`t`t}") }
                         }
+                        "WindowsClient"
+                        {
+                            $null = $configContent.add("`n`n`t`tPowerSTIG_WindowsClient =")
+                            $null = $configContent.add("`n`t`t@{")
+                            $null = $configContent.add("`n`t`t`tOSVersion            = `"10`"")
+                            if ($IncludeFilePaths)
+                            {
+                                $null = $configContent.add("`n`t`t`txccdfPath            = `"$($win10StigFiles.xccdfPath)`"")
+                                $null = $configContent.add("`n`t`t`tOrgSettings          = `"$($win10StigFiles.orgSettings)`"")
+                                $null = $configContent.add("`n`t`t`tManualChecks         = `"$($win10StigFiles.manualChecks)`"")
+                                $null = $configContent.add("`n`t`t}")
+                            }
+                            else { $null = $configContent.add("`n`t`t}") }
+                        }
+                        "RHEL"
+                        {
+                            if      ($osVersion -like "7*") {$rhelVersion = '7'}
+                            elseif  ($osVersion -like "8*") {$rhelVersion = '8'}
+
+                            $null = $configContent.add("`n`n`t`tPowerSTIG_RHEL =")
+                            $null = $configContent.add("`n`t`t@{")
+                            $null = $configContent.add("`n`t`t`tOSVersion            = `"$($rhelVersion)`"")
+                            if ($IncludeFilePaths)
+                            {
+                                $null = $configContent.add("`n`t`t`txccdfPath            = `"$($win10StigFiles.xccdfPath)`"")
+                                $null = $configContent.add("`n`t`t`tOrgSettings          = `"$($win10StigFiles.orgSettings)`"")
+                                $null = $configContent.add("`n`t`t`tManualChecks         = `"$($win10StigFiles.manualChecks)`"")
+                                $null = $configContent.add("`n`t`t}")
+                            }
+                            else { $null = $configContent.add("`n`t`t}") }
+                        }
+                        "Ubuntu*"
+                        {
+                            $null = $configContent.add("`n`n`t`tPowerSTIG_Ubuntu =")
+                            $null = $configContent.add("`n`t`t@{")
+                            $null = $configContent.add("`n`t`t`tOSVersion            = `"18.04`"")
+                            if ($IncludeFilePaths)
+                            {
+                                $null = $configContent.add("`n`t`t`txccdfPath            = `"$($win10StigFiles.xccdfPath)`"")
+                                $null = $configContent.add("`n`t`t`tOrgSettings          = `"$($win10StigFiles.orgSettings)`"")
+                                $null = $configContent.add("`n`t`t`tManualChecks         = `"$($win10StigFiles.manualChecks)`"")
+                                $null = $configContent.add("`n`t`t}")
+                            }
+                            else { $null = $configContent.add("`n`t`t}") }
+                        }
+                        "CentOS*"
+                        {
+                            $null = $configContent.add("`n`n`t`tPowerSTIG_RHEL =")
+                            $null = $configContent.add("`n`t`t@{")
+                            $null = $configContent.add("`n`t`t`tOSVersion            = `"7`"")
+                            if ($IncludeFilePaths)
+                            {
+                                $null = $configContent.add("`n`t`t`txccdfPath            = `"$($win10StigFiles.xccdfPath)`"")
+                                $null = $configContent.add("`n`t`t`tOrgSettings          = `"$($win10StigFiles.orgSettings)`"")
+                                $null = $configContent.add("`n`t`t`tManualChecks         = `"$($win10StigFiles.manualChecks)`"")
+                                $null = $configContent.add("`n`t`t}")
+                            }
+                            else { $null = $configContent.add("`n`t`t}") }
+                        }
                         "InternetExplorer"
                         {
                             $null = $configContent.add("`n`n`t`tPowerSTIG_InternetExplorer =")
@@ -370,20 +450,6 @@ function New-AzSystemData
                                 $null = $configContent.add("`n`t`t}")
                             }
                             else { $null = $configContent.add("`n`t`t}") }
-                        }
-                        "WindowsClient"
-                        {
-                            $null = $configContent.add("`n`n`t`tPowerSTIG_WindowsClient =")
-                            $null = $configContent.add("`n`t`t@{")
-                            $null = $configContent.add("`n`t`t`tOSVersion            = `"10`"")
-                            if ($IncludeFilePaths)
-                            {
-                                $null = $configContent.add("`n`t`t`txccdfPath            = `"$($win10StigFiles.xccdfPath)`"")
-                                $null = $configContent.add("`n`t`t`tOrgSettings          = `"$($win10StigFiles.orgSettings)`"")
-                                $null = $configContent.add("`n`t`t`tManualChecks         = `"$($win10StigFiles.manualChecks)`"")
-                                $null = $configContent.add("`n`t`t}")
-                            }
-                            else { $null = $configContent.add("`n`n`t`t}") }
                         }
                         "WindowsDefender"
                         {
@@ -835,7 +901,7 @@ function Publish-AzAutomationModules
             Import-Module StigRepo -ErrorAction SilentlyContinue
             $stigRepoModule = Get-Module -Name StigRepo -ErrorAction SilentlyContinue
 
-            try 
+            try
             {
                 if ($null -ne $stigRepoModule)
                 {
@@ -922,7 +988,7 @@ function Publish-RepoToBlob
     .EXAMPLE
     Publish-RepoToBlob -RootPath "C:\StigRepo" -ResourceGroupName "My-Azure-ResourceGroup" -ContainerName "SCAR"
     #>
-    
+
     [CmdletBinding()]
     param(
         [Parameter()]
@@ -976,16 +1042,16 @@ function Register-AzAutomationNodes
     Registers Virtual Machines with generated System Data in SCAR as Azure Automation Nodes
 
     .PARAMETER ResourceGroupName
-    Name of the Autmation Account ResourceGroup
-
-    .PARAMETER VMResourceGroup
-    Name of the Virtual Machine ResourceGroup
+    Name of the Azure Resource Group containing the Automation Account
 
     .PARAMETER AutomationAccountName
     Name of the Azure Automation Account
 
+    .PARAMETER TargetFolder
+    System Data Folder to target for Azure Automation registration
+
     .EXAMPLE
-    Register-AzAutomationNodes -ResourceGroupName "AzAutomationRG" -AutomationAccountName "MyAutomationAccount" -VMResourceGroup "VirtualMachineRG"
+    Register-AzAutomationNodes -ResourceGroupName "AzAutomationRG" -AutomationAccountName "MyAutomationAccount"
 
     #>
     [CmdletBinding()]
@@ -1000,25 +1066,204 @@ function Register-AzAutomationNodes
 
         [Parameter(Mandatory=$true)]
         [string]
-        $VMResourceGroup,
+        $AutomationAccountName,
 
-        [Parameter(Mandatory=$true)]
+        [Parameter()]
         [string]
-        $AutomationAccountName
+        $TargetFolder,
+
+        [Parameter()]
+        [string]
+        $ConfigurationMode = 'ApplyAndMonitor',
+
+        [Parameter()]
+        [string]
+        $ConfigurationFrequency = '30',
+
+        [Parameter()]
+        [string]
+        $ActionAfterReboot = 'ContinueConfiguration',
+
+        [Parameter()]
+        [bool]
+        $RebootIfNeeded = $true,
+
+        [Parameter()]
+        [bool]
+        $AllowModuleOverwrite = $true,
+
+        [Parameter()]
+        [switch]
+        $Force
 
     )
 
-    $virtualMachines = Get-AzVM -ResourceGroupName $VMResourceGroup
+    Write-Output "Validating environment and gathering VMs for Registration"
+    $virtualMachines = New-Object System.Collections.ArrayList
+    $vmRegFailures   = New-Object System.Collections.ArrayList
+    $extensionVMs    = New-Object System.Collections.ArrayList
+    $regSuccessCount = 0
+    $regFailureCount = 0
+    $extensionCount  = 0
+
+    # Validate Repository
+    try
+    {
+        $null = Resolve-Path "$RootPath\Systems" -ErrorAction 'Stop'
+        $null = Resolve-Path "$Rootpath\Configurations" -ErrorAction 'Stop'
+        $null = Resolve-Path "$Rootpath\Artifacts" -ErrorAction 'Stop'
+        $null = Resolve-Path "$Rootpath\Resources" -ErrorAction 'Stop'
+    }
+    catch
+    {
+        Write-Output "`n$Rootpath is not a valid STIG Repository"
+        Write-Output "Please provide a valid path or build a new repository using the Initialize-StigRepo function"
+    }
+
+    # Validate Connection to Azure Subscription
+    Write-Output "`tValidating connection to Azure Subscription"
+    $azContext = Get-AzContext
+    if ($null -eq $azContext)
+    {
+        Write-Output "`tPowershell session is not connected to an Azure Subscription - Follow the prompt to login."
+        Connect-AzAccount
+    }
+
+    # Validate Azure Automation Account
+    Write-Output "`tVerifying Azure Automation Account  - $AutomationAccountName"
+    try
+    {
+        $null = Get-AzAutomationAccount -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -ErrorAction 'Stop'
+    }
+    catch
+    {
+        Write-Output "`nAutomation Account is invalid or cannot be found."
+        Write-Output "Verify the Automation Account Exists and that your session is connect to the correct Azure Subscription and try again."
+        exit
+    }
+
+    # Get Azure Virtual Machines
+    if ('' -ne $TargetFolder)
+    {
+        Write-Output "`tGetting Virtual Machines TargetFolder - $TargetFolder"
+        $vmNames = (Get-Childitem "$RootPath\Systems\$TargetFolder\*.psd1" -Recurse).BaseName
+    }
+    else
+    {
+        Write-Output "`tGetting all Vitrual Machines from the Systems Folder"
+        $vmNames = (Get-Childitem "$RootPath\Systems\*.psd1" -Recurse).BaseName
+    }
+
+    Write-Output "`tGetting Azure Virtual Machine objects"
+
+    foreach ($vmName in $vmNames)
+    {
+        $vmObject = Get-AzVM -Name $vmName
+        $null = $virtualMachines.Add($vmObject)
+    }
+
+    # Register Virtual Machines to Automation Acocunt
+    if ($virtualMachines.Count -gt 0)
+    {
+        Write-Output "`nBeginning Azure Automation Registration for $($virtualMachines.Count) identified Virtual Machine(s)"
+    }
+    else
+    {
+        Write-Output "`nNo Virtual Machines were identified for registration."
+        Write-Output "Ensure that System Data exists for the targetted Azure VMs and try again."
+        exit
+    }
 
     foreach ($virtualMachine in $virtualMachines)
     {
-        Write-Output "Registering $($VirtualMachine.Name)"
-        $configName = $virtualMachine.Name.replace("-","_")
-        Register-AzAutomationDscNode -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -AzureVMName $virtualMachine.Name -NodeConfigurationName $configName
+
+        Write-OutPut "`n`t$($virtualMachine.Name) - Beginning Registration"
+
+        # Check the VM for existing extensions
+        Write-Output "`t`tChecking $($virtualMachine.Name) for existing DSC extension"
+        $dscExtension = Get-AzVmExtension -ResourceGroupName $virtualMachine.ResourceGroupName -VMName $virtualMachine.Name | Where-Object ExtensionType -eq 'DSC'
+
+        if ($dscExtension)
+        {
+            if ($Force)
+            {
+                try
+                {
+                    Write-Output "`t`t`tRemoving `'$($dscExtension.Name)`' from $($virtualMachine.Name)"
+                    $null = $dscExtension | Remove-AzVMExtension -Force -Confirm:$false -ErrorAction 'Stop'
+                }
+                catch
+                {
+                    Write-Output "`t`t`tRemoving `'$($dscExtension.Name)`' failed - Remove the extension manually via the Azure Portal."
+                    continue
+                }
+
+                Write-Output "`t`t`tRestarting $($VirtualMachine.Name)"
+            }
+            else
+            {
+                Write-Output "`t`t`t$($VirtualMachine.Name) has an existing DSC extension that must be removed before it can be registered to an Azure Automation Account"
+                Write-OutPut "`t`t`tDSC Extension Name: $($DscExtension.Name)"
+                Write-Output "`n`t$($VirtualMachine.Name) - Registration Cancelled"
+                $null = $vmRegFailures.Add($virtualMachine.Name)
+                $null = $extensionVMs.Add($virtualMachine.Name)
+                $regFailureCount++
+                $extensionCount++
+                continue
+            }
+        }
+
+        # Register Azure Automation Node
+        Write-Output "`t`tRegistering $($virtualMachine.Name) to Azure Automation Account - $AutomationAccountName"
+        $configName = 'STIG_' + $virtualMachine.Name.Replace("-","_")
+        try
+        {
+            $params = @{
+                AzureVMName                     = $virtualMachine.Name
+                AzureVMLocation                 = $virtualMachine.Location
+                AzureVMResourceGroup            = $virtualMachine.ResourceGroupName
+                ResourceGroupName               = $ResourceGroupName
+                AutomationAccountName           = $AutomationAccountName
+                ConfigurationMode               = $ConfigurationMode
+                ConfigurationModeFrequencyMins  = $ConfigurationFrequency
+                RebootNodeIfNeeded              = $RebootIfNeeded
+                ActionAfterReboot               = $ActionAfterReboot
+                AllowModuleOverwrite            = $AllowModuleOverwrite
+            }
+            $null = Register-AzAutomationDscNode @params -Erroraction 'Stop'
+
+            Write-Output "`t`t`tRegistration Successful"
+            $regSuccessCount++
+        }
+        catch
+        {
+            Write-Output "`t`t`tRegistration Failed"
+            $regFailureCount++
+            $null = $vmRegFailures.Add($virtualMachine.Name)
+        }
+
+        Write-Output "`t$($VirtualMachine.Name) - Registration Complete"
+    }
+    Write-Output "`nAzure Automation DSC Node Registration Complete."
+    Write-Output "`tSuccessful VM Registrations:`t$regSuccessCount"
+    Write-Output "`tVM Registration Failures:`t$regFailureCount"
+
+    if ($regFailureCount -gt 0)
+    {
+        Write-Output "`nRegistration failed for the following Virtual Machines:"
+        $vmRegFailures | ForEach-Object { Write-Output "`t$_" }
+        Write-Output "Verify that existing extensions are removed from the VM(s) and that you have appropriate permissions."
+    }
+
+    if ($extensionCount -gt 0)
+    {
+        Write-Output "`nThe following Virtual Machines have existing Extensions preventing them from being registered:"
+        $extensionVMs | ForEach-Object { Write-Output "`t$_" }
+        Write-Output "`nRun this command using the -Force parameter to forcibly remove the existing extensions, or remove them manually try again.`n"
     }
 }
 
-function Export-AzDscConfigurations
+function Start-AzDscBuild
 {
     <#
     .SYNOPSIS
@@ -1030,7 +1275,7 @@ function Export-AzDscConfigurations
     .EXAMPLE
     Export-AzDscConfigurations -RootPath "C:\StigRepo"
     #>
-    
+
     [CmdletBinding()]
     param(
         [Parameter()]
@@ -1043,25 +1288,25 @@ function Export-AzDscConfigurations
 
     $systemFiles        = Get-Childitem "$Rootpath\Systems\*.psd1" -Recurse | Where-Object FullName -notlike "*Staging*"
     $azConfigFolderPath = "$RootPath\Artifacts\AzConfigs"
-    
+
     Write-Output "`t`tCreating Azure Configuration Folder - $azConfigFolderPath"
     $azConfigPath   = (New-Item -Path $azConfigFolderPath -ItemType Directory -Force).FullName
 
     foreach ($systemFile in $systemFiles)
     {
-        Write-Output "`t`t$($systemFile.BaseName) - Generating Configuration for Azure Automation"
-        $azConfigName   = $systemFile.BaseName.replace("-","_")
+        Write-Output "`t`tGenerating Azure DSC Configuration for $($systemFile.BaseName)"
+        $azConfigName   = "STIG_" + $systemFile.BaseName.Replace("-","_")
         $azConfigFile   = New-Item -ItemType File -Path "$azConfigPath\$azConfigName.ps1" -Force
         $systemData     = Invoke-Expression (Get-Content $systemFile | Out-String)
         [array]$configs = $systemData.AppliedConfigurations
-        $azCOnfigString = "Configuration $($azConfigName)`n{"
-        $azCOnfigString += "`n`tImport-DscResource -ModuleName `'PowerSTIG`'`n"
-        $azCOnfigString += "`n`tNode `$AllNodes.Where{`$_.NodeName -eq `"$($systemFile.BaseName)`"}.NodeName`n`t{"
-        
+        $azConfigString = "Configuration $($azConfigName)`n{"
+        $azConfigString += "`n`tImport-DscResource -ModuleName `'PowerSTIG`'`n"
+        $azConfigString += "`n`tNode `$AllNodes.Where{`$_.NodeName -eq `"$($systemFile.BaseName)`"}.NodeName`n`t{"
+
         foreach ($resource in $configs.keys)
         {
             $resourceName = $resource.Replace("PowerSTIG_","")
-            $azConfigString += "`n`t`t$resourceName = @{"
+            $azConfigString += "`n`t`t$resourceName STIG_$resourceName`n`t`t{"
             $resourceParams = $configs.$resource.keys
             if ($null -ne $resourceParams)
             {
@@ -1073,19 +1318,19 @@ function Export-AzDscConfigurations
                 }
                 $azConfigString += "`n`t`t}`n"
             }
-            else 
+            else
             {
                 $azConfigString += "}`n"
             }
         }
-        
+
         $azConfigString += "`t}`n}"
         Set-Content $azConfigFile.FullName -Value $azConfigString -Force
     }
     Write-Output "`tAzure Automation DSC Configuration Generation Complete"
 }
 
-function Import-AzDscConfigurations
+function Publish-AzDscConfigurations
 {
     <#
     .SYNOPSIS
@@ -1099,11 +1344,11 @@ function Import-AzDscConfigurations
 
     .PARAMETER RootPath
     Path to the Stig Compliance Automation Repository
-    
+
     .EXAMPLE
     Import-DscConfigurations -Rootpath "C:\StigRepo" -ResourceGroupName "MyAutomationAccountRG" -AutomationAccountName "MyAutomationAccount"
     #>
-    
+
     [CmdletBinding()]
     param(
         [Parameter()]
@@ -1122,20 +1367,19 @@ function Import-AzDscConfigurations
 
     Write-Output "Starting Azure Automation import - $AutomationAccountName"
 
-    try 
+    try
     {
         $azConfigPath   = (Resolve-Path -Path "$RootPath\Artifacts\AzConfigs" -ErrorAction 'Stop').Path
-        $azConfigFiles  = Get-Childitem "$azConfigPath\*.ps1"  
+        $azConfigFiles  = Get-Childitem "$azConfigPath\*.ps1"
     }
     catch
     {
         Write-Output "`tNo Azure DscConfiguration Files Present. Exporting Azure Automation Configuration Files."
         Export-AzDscConfigurations -RootPath $RootPath
         $azConfigPath   = (Resolve-Path -Path "$RootPath\Artifacts\AzConfigs" -ErrorAction 'Stop').Path
-        $azConfigFiles  = Get-Childitem "$azConfigPath\*.ps1"  
+        $azConfigFiles  = Get-Childitem "$azConfigPath\*.ps1"
     }
 
-    
     if ($null -eq (Get-AzContext))
     {
         Write-Output "`tAzure Context not established. Follow prompt to login."
@@ -1144,13 +1388,13 @@ function Import-AzDscConfigurations
 
     foreach ($azConfigFile in $azConfigFiles)
     {
-        $azConfigName = $azConfigFile.BaseName 
-        Write-Output "`t$($azConfigFile.BaseName) - Starting Azure Automation Sync"
+        $azConfigName = $azConfigFile.BaseName
+        Write-Output "`tAdding $($azConfigFile.BaseName) to Azure Automation Account - $AutomationAccountName"
 
         try
         {
-            Write-Output "`t`tPublishing Configuration to Azure Automation Account"
-            $null = Import-AzAutomationDscConfiguration -SourcePath $azConfigFile.FullName -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -Published -Force
+            Write-Output "`t`tPublishing Configuration"
+            $null = Import-AzAutomationDscConfiguration -SourcePath $azConfigFile.FullName -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -Published -Force -ErrorAction 'Stop'
         }
         catch
         {
@@ -1160,8 +1404,8 @@ function Import-AzDscConfigurations
 
         try
         {
-            Write-Output "`t`tCompiling Azure Automation Configuration"
-            $null = Start-AzAutomationDscCompilationJob -ConfigurationName $azconfigName -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName
+            Write-Output "`t`tStarting DSC Compilation Job"
+            $null = Start-AzAutomationDscCompilationJob -ConfigurationName $azconfigName -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -ErrorAction 'Stop'
         }
         catch
         {
