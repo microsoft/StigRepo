@@ -1790,7 +1790,7 @@ function Set-AzAutomationNodeConfigs
         }
         catch
         {
-            Write-Output "`tDscNodeConfiguration Assignment Failed. Trying DscConfiguration."
+            Write-Output "`t`tDscNodeConfiguration Assignment Failed. Trying DscConfiguration."
             $tryDscConfig = $true
         }
 
