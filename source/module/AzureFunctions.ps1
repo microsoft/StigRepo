@@ -81,7 +81,7 @@ function New-AzSystemData
 
     foreach ($resourceGroup in $ResourceGroups)
     {
-        Write-Output "`t$ResourceGroup - Generating System Data"
+        Write-Output "`n`tBeginning ResourceGroup System Data Generation - $ResourceGroup"
 
         $jobs               = New-Object System.Collections.ArrayList
         $rgFolder           = (New-Item -ItemType Directory -Path "$SystemsPath\$resourceGroup" -Force).FullName
@@ -357,6 +357,7 @@ function New-AzSystemData
                             {
                                 "*2016*"
                                 {
+                                    $null = $configContent.add("`n`t`t`tSkipRule             = @('V-224866','V-224867','V-224868')")
                                     $null = $configContent.add("`n`t`t`tExceptions = @{")
                                     $null = $configContent.add("`n`t`t`t    'V-225019' = @{Identity = 'Guests'}")
                                     $null = $configContent.add("`n`t`t`t    'V-225016' = @{Identity = 'Guests'}")
@@ -418,12 +419,19 @@ function New-AzSystemData
                         }
                         "RHEL"
                         {
-                            if      ($osVersion -like "7*") {$rhelVersion = '7'}
-                            elseif  ($osVersion -like "8*") {$rhelVersion = '8'}
-
                             $null = $configContent.add("`n`n`t`tPowerSTIG_RHEL =")
                             $null = $configContent.add("`n`t`t@{")
-                            $null = $configContent.add("`n`t`t`tOSVersion            = `"$($rhelVersion)`"")
+
+                            if      ($osVersion -like "7*")
+                            {
+                                $null = $configContent.add("`n`t`t`tOSVersion            = `"7`"")
+                                $null = $configContent.add("`n`t`t`tSkipRule             = @('V-204623','V-204399.a','V-204399.b','V-204400','V-204403')")
+                            }
+                            elseif  ($osVersion -like "8*")
+                            {
+                                $null = $configContent.add("`n`t`t`tOSVersion            = `"8`"")
+                            }
+
                             if ($IncludeFilePaths)
                             {
                                 $null = $configContent.add("`n`t`t`txccdfPath            = `"$($win10StigFiles.xccdfPath)`"")
@@ -438,6 +446,8 @@ function New-AzSystemData
                             $null = $configContent.add("`n`n`t`tPowerSTIG_Ubuntu =")
                             $null = $configContent.add("`n`t`t@{")
                             $null = $configContent.add("`n`t`t`tOSVersion            = `"18.04`"")
+                            $null = $configContent.add("`n`t`t`tSkipRule             = @('V-219159','V-219167.a','V-219167.b','V-219167.c')")
+
                             if ($IncludeFilePaths)
                             {
                                 $null = $configContent.add("`n`t`t`txccdfPath            = `"$($win10StigFiles.xccdfPath)`"")
@@ -452,6 +462,7 @@ function New-AzSystemData
                             $null = $configContent.add("`n`n`t`tPowerSTIG_RHEL =")
                             $null = $configContent.add("`n`t`t@{")
                             $null = $configContent.add("`n`t`t`tOSVersion            = `"7`"")
+                            $null = $configContent.add("`n`t`t`tSkipRule             = @('V-204623','V-204399.a','V-204399.b','V-204400','V-204403')")
                             if ($IncludeFilePaths)
                             {
                                 $null = $configContent.add("`n`t`t`txccdfPath            = `"$($win10StigFiles.xccdfPath)`"")
@@ -833,7 +844,11 @@ function New-AzSystemData
         {
             Write-Output "`t`tNo Jobs Generated for $resourceGroup"
         }
+
+        Write-Output "`tResource Group System Data Generation Complete - $resourceGroup"
     }
+
+    Write-Output "`nSystem Data Generation Complete"
 }
 
 function Publish-AzAutomationModules
@@ -1166,7 +1181,6 @@ function Register-AzAutomationNodes
     }
 
     # Validate Connection to Azure Subscription
-    Write-Output "`tValidating connection to Azure Subscription`t"
     $azContext = Get-AzContext
     if ($null -ne $azContext)
     {
@@ -1175,7 +1189,7 @@ function Register-AzAutomationNodes
     }
     else
     {
-        Write-Output "`tPowershell session is not connected to an Azure Subscription - Follow the prompt to login."
+        Write-Output "`tPowershell session is not connected to an Azure Subscription. Follow the prompt to login."
         Connect-AzAccount
     }
 
@@ -1222,8 +1236,6 @@ function Register-AzAutomationNodes
         $null = $virtualMachines.Add($vmObject)
     }
 
-
-
     # Check for Linux Machines and generate registration Script
     Write-Output "`tChecking for Linux VMs"
 
@@ -1262,14 +1274,14 @@ function Register-AzAutomationNodes
         # Start VM if deallocated
         Write-Output "`t`t`tChecking VM Running State"
 
-        if ($vmPowerState -ne 'Running')
+        if ($vmPowerState -ne 'VM running')
         {
             Write-Output "`t`t`tVM is Deallocated - Starting VM"
             $null = $virtualMachine | Start-AzVM
         }
         else
         {
-            Write-Output "Virtual machine is currently running"
+            Write-Output "`t`tVirtual machine is currently running"
         }
 
         # Check the VM for existing extensions
@@ -1280,6 +1292,7 @@ function Register-AzAutomationNodes
         {
             Write-OutPut "`t`t`tExisting DSC Extension Found"
             $dscExtensionName = $dscExtension.Name
+            
             if ($Force)
             {
                 try
@@ -1408,17 +1421,17 @@ function Start-AzDscBuild
 
     )
 
-    Write-Output "`tGenerating Azure Automation DSC Configuration Scripts"
+    Write-Output "Beginning Azure Automation DSC Configuration Script Creation"
 
     $systemFiles        = Get-Childitem "$Rootpath\Systems\*.psd1" -Recurse | Where-Object FullName -notlike "*Staging*"
     $azConfigFolderPath = "$RootPath\Artifacts\AzConfigs"
 
-    Write-Output "`t`tCreating Azure Configuration Folder - $azConfigFolderPath"
+    Write-Output "`tCreating Azure Configuration Folder - $azConfigFolderPath"
     $azConfigPath   = (New-Item -Path $azConfigFolderPath -ItemType Directory -Force).FullName
 
     foreach ($systemFile in $systemFiles)
     {
-        Write-Output "`t`tGenerating Azure DSC Configuration for $($systemFile.BaseName)"
+        Write-Output "`tGenerating Azure DSC Configuration - $($systemFile.BaseName)"
         $azConfigName   = "STIG_" + $systemFile.BaseName.Replace("-","_")
         $azConfigFile   = New-Item -ItemType File -Path "$azConfigPath\$azConfigName.ps1" -Force
         $systemData     = Invoke-Expression (Get-Content $systemFile | Out-String)
@@ -1490,8 +1503,19 @@ function Publish-AzDscConfigurations
 
     )
 
+    $azContext = Get-AzContext
     Write-Output "Starting Azure Automation import - $AutomationAccountName"
 
+    if ($null -ne $azContext)
+    {
+        $azSubscription = $azContext.Name.Split(" ")[0]
+        Write-Output "`tConnected to Azure Subscription:`t$azSubscription"
+    }
+    else
+    {
+        Write-Output "`tPowershell session is not connected to an Azure Subscription. Follow the prompt to login."
+        Connect-AzAccount
+    }
     try
     {
         $azConfigPath   = (Resolve-Path -Path "$RootPath\Artifacts\AzConfigs" -ErrorAction 'Stop').Path
@@ -1505,9 +1529,14 @@ function Publish-AzDscConfigurations
         $azConfigFiles  = Get-Childitem "$azConfigPath\*.ps1"
     }
 
-    if ($null -eq (Get-AzContext))
+    if ($null -ne $azContext)
     {
-        Write-Output "`tAzure Context not established. Follow prompt to login."
+        $azSubscription = $azContext.Name.Split(" ")[0]
+        Write-Output "`tConnected to Azure Subscription:`t$azSubscription"
+    }
+    else
+    {
+        Write-Output "`tPowershell session is not connected to an Azure Subscription. Follow the prompt to login."
         Connect-AzAccount
     }
 
