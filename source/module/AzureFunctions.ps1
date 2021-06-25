@@ -358,7 +358,7 @@ function New-AzSystemData
                                 "*2016*"
                                 {
                                     $null = $configContent.add("`n`t`t`tSkipRule             = @('V-224866','V-224867','V-224868')")
-                                    $null = $configContent.add("`n`t`t`tExceptions = @{")
+                                    $null = $configContent.add("`n`t`t`tException = @{")
                                     $null = $configContent.add("`n`t`t`t    'V-225019' = @{Identity = 'Guests'}")
                                     $null = $configContent.add("`n`t`t`t    'V-225016' = @{Identity = 'Guests'}")
                                     $null = $configContent.add("`n`t`t`t    'V-225018' = @{Identity = 'Guests'}")
@@ -371,7 +371,8 @@ function New-AzSystemData
                                 }
                                 "*2019*"
                                 {
-                                    $null = $configContent.add("`n`t`t`tExceptions = @{")
+                                    $null = $configContent.add("`n`t`t`tSkipRule             = @('V-205737')")
+                                    $null = $configContent.add("`n`t`t`tException = @{")
                                     $null = $configContent.add("`n`t`t`t    'V-205733' = @{Identity = 'Guests'}")
                                     $null = $configContent.add("`n`t`t`t    'V-205672' = @{Identity = 'Guests'}")
                                     $null = $configContent.add("`n`t`t`t    'V-205673' = @{Identity = 'Guests'}")
@@ -1146,7 +1147,7 @@ function Register-AzAutomationNodes
 
         [Parameter()]
         [bool]
-        $RebootIfNeeded = $true,
+        $RebootNodeIfNeeded = $true,
 
         [Parameter()]
         [bool]
@@ -1160,11 +1161,7 @@ function Register-AzAutomationNodes
 
     Write-Output "Preparing environment for Azure Automation Registration"
     $virtualMachines = New-Object System.Collections.ArrayList
-    $vmRegFailures   = New-Object System.Collections.ArrayList
-    $extensionVMs    = New-Object System.Collections.ArrayList
-    $regSuccessCount = 0
-    $regFailureCount = 0
-    $extensionCount  = 0
+    $jobs            = New-Object System.Collections.ArrayList
 
     # Validate Repository
     try
@@ -1173,6 +1170,7 @@ function Register-AzAutomationNodes
         $null = Resolve-Path "$Rootpath\Configurations" -ErrorAction 'Stop'
         $null = Resolve-Path "$Rootpath\Artifacts" -ErrorAction 'Stop'
         $null = Resolve-Path "$Rootpath\Resources" -ErrorAction 'Stop'
+        Write-OutPut "`tSTIG Repository Path is Valid:`t`t$RootPath"
     }
     catch
     {
@@ -1194,10 +1192,10 @@ function Register-AzAutomationNodes
     }
 
     # Validate Azure Automation Account
-    Write-Output "`tVerifying Azure Automation Account:`t$AutomationAccountName"
     try
     {
         $null = Get-AzAutomationAccount -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -ErrorAction 'Stop'
+        Write-Output "`tAzure Automation Account is valid:`t$AutomationAccountName"
     }
     catch
     {
@@ -1250,6 +1248,10 @@ function Register-AzAutomationNodes
         $linuxRegContent = "/opt/microsoft/dsc/Scripts/Register.py $registrationKey $registrationUrl"
         $linuxRegScript  = (New-Item -ItemType 'File' -Path "$RootPath\LinuxRegistration.sh" -Value $linuxRegContent -Force).FullName
     }
+    else
+    {
+        $linuxRegScript  = $null
+    }
 
     # Register Virtual Machines to Automation Acocunt
     if ($virtualMachines.Count -gt 0)
@@ -1262,117 +1264,151 @@ function Register-AzAutomationNodes
         Write-Output "Ensure that System Data exists for the targetted Azure VMs and try again."
         exit
     }
+
     foreach ($virtualMachine in $virtualMachines)
     {
-        Write-OutPut "`n`tBeginning Registration:`t$($virtualMachine.Name)"
+        Write-Output "`tStarting Node Registration Job - $($virtualMachine.Name)"
+        [string]$osType = $virtualMachine.StorageProfile.OSDisk.OSType
 
-        $vmName             = $virtualMachine.Name
-        $vmResourceGroup    = $virtualMachine.ResourceGroupName
-        $osType             = $virtualMachine.StorageProfile.OSDisk.OSType
-        $vmPowerState       = $virtualMachine.PowerState
+        $job = Start-Job -ScriptBlock {
 
-        # Start VM if deallocated
-        Write-Output "`t`t`tChecking VM Running State"
+            $virtualMachine                 = $using:VirtualMachine
+            $linuxRegScript                 = $using:linuxRegScript
+            $ResourceGroupName              = $using:ResourceGroupName
+            $AutomationAccountName          = $using:AutomationAccountName
+            $ConfigurationMode              = $using:ConfigurationMode
+            $ConfigurationModeFrequencyMins = $using:ConfigurationModeFrequencyMins
+            $RefreshFrequencyMins           = $using:RefreshFrequencyMins
+            $RebootNodeIfNeeded             = $using:RebootNodeIfNeeded
+            $ActionAfterReboot              = $using:ActionAfterReboot
+            $AllowModuleOverwrite           = $using:AllowModuleOverwrite
+            $Force                          = $using:Force
+            $RootPath                       = $using:RootPath
+            $osType                         = $using:osType
+            $vmName                         = $virtualMachine.Name
+            $vmResourceGroup                = $virtualMachine.ResourceGroupName
+            $vmPowerState                   = $virtualMachine.PowerState
 
-        if ($vmPowerState -ne 'VM running')
-        {
-            Write-Output "`t`t`tVM is Deallocated - Starting VM"
-            $null = $virtualMachine | Start-AzVM
-        }
-        else
-        {
-            Write-Output "`t`tVirtual machine is currently running"
-        }
+            Write-OutPut "`n`tBeginning Registration:`t$($virtualMachine.Name)"
 
-        # Check the VM for existing extensions
-        Write-Output "`t`tExisting DSC Extension Validation"
-        $dscExtension = Get-AzVmExtension -ResourceGroupName $vmResourceGroup -VMName $vmName | Where-Object {$_.ExtensionType -like "*DSC*"}
+            # Start VM if deallocated
+            Write-Output "`t`tChecking VM Running State"
 
-        if ($dscExtension)
-        {
-            Write-OutPut "`t`t`tExisting DSC Extension Found"
-            $dscExtensionName = $dscExtension.Name
-            
-            if ($Force)
+            if ($vmPowerState -ne 'VM running')
             {
-                try
-                {
-                    # Remove DSC Extension
-                    Write-Output "`t`t`tRemoving `'$dscExtensionName`' from $vmName"
-                    $null = $dscExtension | Remove-AzVMExtension -Force -Confirm:$false -ErrorAction 'Stop'
+                Write-Output "`t`tVM is Deallocated - Starting VM"
+                $null = $virtualMachine | Start-AzVM
+            }
+            else
+            {
+                Write-Output "`t`tVirtual machine is currently running"
+            }
 
-                    # Reboot VM
-                    Write-Output "`t`t`tRestarting $vmName"
-                    $null = $virtualMachine | Restart-AzVM
-                }
-                catch
+            # Check the VM for existing extensions
+            Write-Output "`t`tChecking for Existing DSC Extension"
+            $dscExtension = Get-AzVmExtension -ResourceGroupName $vmResourceGroup -VMName $vmName | Where-Object {$_.ExtensionType -like "*DSC*"}
+
+            if ($dscExtension)
+            {
+                Write-OutPut "`t`tExisting DSC Extension Found"
+                $dscExtensionName = $dscExtension.Name
+
+                if ($Force)
                 {
-                    Write-Output "`t`t`tRemoving `'$dscExtensionName`' failed - Remove the extension manually via the Azure Portal."
+                    try
+                    {
+                        # Remove DSC Extension
+                        Write-Output "`t`tRemoving `'$dscExtensionName`' from $vmName"
+                        $null = $dscExtension | Remove-AzVMExtension -Force -Confirm:$false -ErrorAction 'Stop'
+
+                        # Reboot VM
+                        Write-Output "`t`tRestarting $vmName"
+                        $null = $virtualMachine | Restart-AzVM
+                    }
+                    catch
+                    {
+                        Write-Output "`t`tRemoving `'$dscExtensionName`' failed - Remove the extension manually via the Azure Portal."
+                        continue
+                    }
+                }
+                else
+                {
+                    Write-OutPut "`t`tDSC Extension Name: $dscExtensionName"
+                    Write-OutPut "`t`tRun the Register-AzAutomationNodes command using -Force to forcibly remove existing DSC extensions/Automation Account registration."
+                    Write-Output "`t$vmName - Registration Cancelled"
                     continue
                 }
             }
             else
             {
-                Write-Output "`t`t`t$vmName has an existing DSC extension that must be removed before it can be registered to an Azure Automation Account"
-                Write-OutPut "`t`t`tDSC Extension Name: $dscExtensionName"
-                Write-Output "`n`t$vmName - Registration Cancelled"
-                $null = $vmRegFailures.Add($vmName)
-                $null = $extensionVMs.Add($vmName)
-                $regFailureCount++
-                $extensionCount++
-                continue
+                Write-Output "`t`tNo Existing DSC Extensions Found"
             }
-        }
 
-        # Register Azure Automation Node
-        try
-        {
-            switch ($osType)
+            # Register Azure Automation Node
+            try
             {
-                'Windows'
-                {
-                    Write-Output "`t`tRegistering Windows VM - $vmName"
 
-                    $params = @{
-                        AzureVMName                     = $virtualMachine.Name
-                        AzureVMLocation                 = $virtualMachine.Location
-                        AzureVMResourceGroup            = $virtualMachine.ResourceGroupName
-                        ResourceGroupName               = $ResourceGroupName
-                        AutomationAccountName           = $AutomationAccountName
-                        ConfigurationMode               = $ConfigurationMode
-                        ConfigurationModeFrequencyMins  = $ConfigurationModeFrequencyMins
-                        RefreshFrequencyMins            = $RefreshFrequencyMins
-                        RebootNodeIfNeeded              = $RebootIfNeeded
-                        ActionAfterReboot               = $ActionAfterReboot
-                        AllowModuleOverwrite            = $AllowModuleOverwrite
-                    }
-                    $null = Register-AzAutomationDscNode @params -Erroraction 'Stop'
-                }
-                'Linux'
+                switch ($osType)
                 {
-                    Write-Output "`t`tRegistering Linux VM - $vmName"
+                    'Windows'
+                    {
+                        Write-Output "`t`tRegistering Windows VM - $vmName"
 
-                    $params = @{
-                        ResourceGroupName   = $vmResourceGroup
-                        VmName              = $vmName
-                        ScriptPath          = $linuxRegScript
-                        Commandid           = 'runshellscript'
+                        $params = @{
+                            AzureVMName                     = $virtualMachine.Name
+                            AzureVMLocation                 = $virtualMachine.Location
+                            AzureVMResourceGroup            = $virtualMachine.ResourceGroupName
+                            ResourceGroupName               = $ResourceGroupName
+                            AutomationAccountName           = $AutomationAccountName
+                            ConfigurationMode               = $ConfigurationMode
+                            ConfigurationModeFrequencyMins  = $ConfigurationModeFrequencyMins
+                            RefreshFrequencyMins            = $RefreshFrequencyMins
+                            RebootNodeIfNeeded              = $RebootNodeIfNeeded
+                            ActionAfterReboot               = $ActionAfterReboot
+                            AllowModuleOverwrite            = $AllowModuleOverwrite
+                        }
+                        Register-AzAutomationDscNode @params -Erroraction 'Stop'
+                        Write-Output "`t`tRegistration Status - Succeeded"
                     }
-                    $null = Invoke-AzVmRunCommand @params
+                    'Linux'
+                    {
+                        Write-Output "`t`tRegistering Linux VM - $vmName"
+
+                        $params = @{
+                            ResourceGroupName   = $VirtualMachine.ResourceGroupName
+                            VmName              = $vmName
+                            ScriptPath          = $linuxRegScript
+                            Commandid           = 'runshellscript'
+                        }
+                        $regResult = (Invoke-AzVmRunCommand @params -ErrorAction 'Stop').Status
+                        Write-Output "`t`tRegistration Status - $regResult"
+                    }
                 }
             }
+            catch
+            {
+                Write-Output "`t`t`tRegistration Status - Failure"
+            }
 
-            Write-Output "`t`t`tRegistration Successful"
-            $regSuccessCount++
+            Write-Output "`t$($VirtualMachine.Name) - Registration Complete"
         }
-        catch
+        $null = $jobs.add($job.Id)
+    }
+
+    if ($jobs.count -ge 1)
+    {
+        Write-Output "`nAzure Automation Node Registration jobs created. Checking status every 30 seconds until all jobs are complete."
+
+        do
         {
-            Write-Output "`t`t`tRegistration Failed"
-            $regFailureCount++
-            $null = $vmRegFailures.Add($virtualMachine.Name)
+            $completedJobs = (Get-Job -ID $jobs | Where-Object {$_.state -ne "Running"}).count
+            $runningjobs   = (Get-Job -ID $jobs | Where-Object {$_.state -eq "Running"}).count
+            Write-Output "`tNode Registration Job Status:`t$runningJobs Jobs Currently Processing`t$completedJobs/$($jobs.count) Jobs Completed"
+            Start-Sleep -Seconds 30
         }
-
-        Write-Output "`t$($VirtualMachine.Name) - Registration Complete"
+        while ((Get-Job -ID $jobs).State -contains "Running")
+        Write-Output "`n$($jobs.count) Azure Automation Node Registration jobs completed. Outputting Results.`n"
+        Get-Job -ID $jobs | Wait-Job | Receive-Job
     }
 
     # Cleanup Linux Registration Script if present
@@ -1380,24 +1416,7 @@ function Register-AzAutomationNodes
     {
         Remove-Item -Path $linuxRegScript -Force -Confirm:$False
     }
-
-    Write-Output "`nAzure Automation DSC Node Registration Complete."
-    Write-Output "`tSuccessful VM Registrations:`t$regSuccessCount"
-    Write-Output "`tVM Registration Failures:`t$regFailureCount"
-
-    if ($regFailureCount -gt 0)
-    {
-        Write-Output "`nRegistration failed for the following Virtual Machines:"
-        $vmRegFailures | ForEach-Object { Write-Output "`t$_" }
-        Write-Output "Verify that existing extensions are removed from the VM(s) and that you have appropriate permissions."
-    }
-
-    if ($extensionCount -gt 0)
-    {
-        Write-Output "`nThe following Virtual Machines have existing Extensions preventing them from being registered:"
-        $extensionVMs | ForEach-Object { Write-Output "`t$_" }
-        Write-Output "`nRun this command using the -Force parameter to forcibly remove the existing extensions, or remove them manually try again.`n"
-    }
+    Write-Output "`nAzure Automation Registration Complete."
 }
 
 function Start-AzDscBuild
@@ -1439,7 +1458,7 @@ function Start-AzDscBuild
         $nodeName       = $systemData.NodeName
         $azConfigString = "Configuration $($azConfigName)`n{"
         $azConfigString += "`n`tImport-DscResource -ModuleName `'PowerSTIG`'`n"
-        $azConfigString += "`n`tNode $nodeName`n`t{"
+        $azConfigString += "`n`tNode '$nodeName'`n`t{"
 
         foreach ($resource in $configs.keys)
         {
@@ -1452,7 +1471,55 @@ function Start-AzDscBuild
                 {
                     $name = $param
                     $value = $configs.$resource.$param
-                    $azConfigString += "`n`t`t`t$name = `'$value`'"
+                    $dataType = $value.gettype().name
+
+                    switch ($dataType)
+                    {
+                        'HashTable' {
+                            $azConfigString += "`n`t`t`t$name = @{"
+                            $keys = $configs.$resource.$param.keys
+
+                            foreach ($vulID in $keys)
+                            {
+                                $valueTypes = $configs.$resource.$param.$vulID.keys
+
+                                foreach ($valuetype in $valueTypes)
+                                {
+                                    $valuedata = $configs.$resource.$param.$vulID | Select-Object -expandproperty $valueType
+                                }
+                                $azConfigString += "`n`t`t`t`t'$vulID' = @{'$valueType' = '$valuedata'}"
+                            }
+                            $azConfigString += "`n`t`t`t}"
+                        }
+                        'Object[]'
+                        {
+                            $arrayString = ""
+                            $vulIDs      = $configs.$resource.$param
+                            $i           = 0
+
+                            foreach ($vulID in $vulIDs)
+                            {
+                                $i++
+
+                                if ($i -ne $vulIDs.Count)
+                                {
+                                    [string]$arrayString += "'$vulID',"
+                                }
+                                else
+                                {
+                                    [string]$arrayString += "'$vulID'"
+                                }
+                            }
+                            $arrayString = $arrayString
+                            $azConfigString += "`n`t`t`t$name = @($arrayString)"
+                        }
+                        default
+                        {
+                            $value = $configs.$resource.$param
+                            $azConfigString += "`n`t`t`t$name = `'$value`'"
+                        }
+                    }
+
                 }
                 $azConfigString += "`n`t`t}`n"
             }
@@ -1468,7 +1535,7 @@ function Start-AzDscBuild
     Write-Output "`tAzure Automation DSC Configuration Generation Complete"
 }
 
-function Publish-AzDscConfigurations
+function Publish-AzAutomationNodeConfigs
 {
     <#
     .SYNOPSIS
@@ -1503,8 +1570,25 @@ function Publish-AzDscConfigurations
 
     )
 
-    $azContext = Get-AzContext
     Write-Output "Starting Azure Automation import - $AutomationAccountName"
+
+    # Validate Repository
+    try
+    {
+        $null = Resolve-Path "$RootPath\Systems" -ErrorAction 'Stop'
+        $null = Resolve-Path "$Rootpath\Configurations" -ErrorAction 'Stop'
+        $null = Resolve-Path "$Rootpath\Artifacts" -ErrorAction 'Stop'
+        $null = Resolve-Path "$Rootpath\Resources" -ErrorAction 'Stop'
+        Write-Output "`tSTIG Repository Path is valid:`t`t$RootPath"
+    }
+    catch
+    {
+        Write-Output "`n$Rootpath is not a valid STIG Repository"
+        Write-Output "Please provide a valid path or build a new repository using the Initialize-StigRepo function"
+    }
+
+    # Validate Azure Context
+    $azContext = Get-AzContext
 
     if ($null -ne $azContext)
     {
@@ -1516,6 +1600,21 @@ function Publish-AzDscConfigurations
         Write-Output "`tPowershell session is not connected to an Azure Subscription. Follow the prompt to login."
         Connect-AzAccount
     }
+
+    # Validate Azure Automation Account
+    try
+    {
+        $null = Get-AzAutomationAccount -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -ErrorAction 'Stop'
+        Write-Output "`tAzure Automation Account is valid:`t$AutomationAccountName"
+    }
+    catch
+    {
+        Write-Output "`nAutomation Account is invalid or cannot be found."
+        Write-Output "Verify the Automation Account Exists and that your session is connect to the correct Azure Subscription and try again."
+        exit
+    }
+
+    # Get DSC Configuration Scripts
     try
     {
         $azConfigPath   = (Resolve-Path -Path "$RootPath\Artifacts\AzConfigs" -ErrorAction 'Stop').Path
@@ -1529,48 +1628,156 @@ function Publish-AzDscConfigurations
         $azConfigFiles  = Get-Childitem "$azConfigPath\*.ps1"
     }
 
-    if ($null -ne $azContext)
-    {
-        $azSubscription = $azContext.Name.Split(" ")[0]
-        Write-Output "`tConnected to Azure Subscription:`t$azSubscription"
-    }
-    else
-    {
-        Write-Output "`tPowershell session is not connected to an Azure Subscription. Follow the prompt to login."
-        Connect-AzAccount
-    }
+    Write-Output "`nStarting Jobs to publish STIG configurations to Azure Automation"
+    $jobs = New-Object System.Collections.ArrayList
 
     foreach ($azConfigFile in $azConfigFiles)
     {
-        $azConfigName = $azConfigFile.BaseName
-        Write-Output "`tAdding $($azConfigFile.BaseName) to Azure Automation Account - $AutomationAccountName"
+        Write-Output "`tStarting Node Configuration Publish Job - $($azConfigFile.BaseName)"
 
-        try
-        {
-            Write-Output "`t`tPublishing Configuration"
-            $null = Import-AzAutomationDscConfiguration -SourcePath $azConfigFile.FullName -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -Published -Force -ErrorAction 'Stop'
-        }
-        catch
-        {
-            Write-Output "`t`tAzure Automation Import failed"
-            throw $_
-        }
+        $job = Start-Job -ScriptBlock {
 
-        try
-        {
-            Write-Output "`t`tStarting DSC Compilation Job"
-            $null = Start-AzAutomationDscCompilationJob -ConfigurationName $azconfigName -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -ErrorAction 'Stop'
+            $azConfigFile           = $using:azConfigFile
+            $ResourceGroupName      = $using:ResourceGroupName
+            $AutomationAccountName  = $using:AutomationAccountName
+            $azConfigPath           = $azConfigFile.FullName
+            $azConfigName           = (Get-Item $azConfigPath).BaseName
+
+            try
+            {
+                $params = @{
+                    Path                    = $azConfigPath
+                    ConfigurationName       = $azConfigName
+                    ResourceGroupName       = $ResourceGroupName
+                    AutomationAccountName   = $AutomationAccountName
+                    Force = $true
+                }
+                $null = Import-AzAutomationDscNodeConfiguration @params -ErrorAction 'Stop'
+                Write-Output "`t$azConfigName - Publishing job Succeeded"
+            }
+            catch
+            {
+                Write-Output "`t$azConfigName - Publishing Job Failed"
+                continue
+            }
         }
-        catch
+        $null = $jobs.add($job.ID)
+    }
+
+    if ($jobs.count -ge 1)
+    {
+        Write-Output "Publish Node Configuration Jobs created. Checking status every 30 seconds until all jobs are complete."
+
+        do
         {
-            Write-Output "`t`tAzure Automation Compilation Job Failed"
-            throw $_
+            $completedJobs = (Get-Job -ID $jobs | Where-Object {$_.state -ne "Running"}).count
+            $runningjobs   = (Get-Job -ID $jobs | Where-Object {$_.state -eq "Running"}).count
+            Write-Output "`tPublish Node Configuration Job Status:`t$runningJobs Jobs Currently Processing`t$completedJobs/$($jobs.count) Jobs Completed"
+            Start-Sleep -Seconds 30
         }
+        while ((Get-Job -ID $jobs).State -contains "Running")
+        Write-Output "`n$($jobs.count) Jobs Completed. Outputting Results."
+        Get-Job -ID $jobs | Wait-Job | Receive-Job
+    }
+    else
+    {
+        Write-Output "`n`tNo Jobs Generated."
     }
     Write-Output "Azure Automation import complete"
 }
 
 function Set-AzAutomationNodeConfigs
 {
+    [CmdletBinding()]
+    param(
+        [Parameter()]
+        [string]
+        $RootPath = (Get-Location).Path,
 
+        [Parameter(Mandatory=$true)]
+        [string]
+        $ResourceGroupName,
+
+        [Parameter(Mandatory=$true)]
+        [string]
+        $AutomationAccountName
+
+    )
+
+    if (-not $SkipValidation)
+    {
+        # Validate Repository
+        try
+        {
+            $null = Resolve-Path "$RootPath\Systems" -ErrorAction 'Stop'
+            $null = Resolve-Path "$Rootpath\Configurations" -ErrorAction 'Stop'
+            $null = Resolve-Path "$Rootpath\Artifacts" -ErrorAction 'Stop'
+            $null = Resolve-Path "$Rootpath\Resources" -ErrorAction 'Stop'
+            Write-Output "`tSTIG Repository Path is valid:`t`t$RootPath"
+        }
+        catch
+        {
+            Write-Output "`n$Rootpath is not a valid STIG Repository"
+            Write-Output "Please provide a valid path or build a new repository using the Initialize-StigRepo function"
+        }
+
+        # Validate Azure Context
+        $azContext = Get-AzContext
+
+        if ($null -ne $azContext)
+        {
+            $azSubscription = $azContext.Name.Split(" ")[0]
+            Write-Output "`tConnected to Azure Subscription:`t$azSubscription"
+        }
+        else
+        {
+            Write-Output "`tPowershell session is not connected to an Azure Subscription. Follow the prompt to login."
+            Connect-AzAccount
+        }
+
+        # Validate Azure Automation Account
+        try
+        {
+            $null = Get-AzAutomationAccount -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -ErrorAction 'Stop'
+            Write-Output "`tAzure Automation Account is valid:`t$AutomationAccountName"
+        }
+        catch
+        {
+            Write-Output "`nAutomation Account is invalid or cannot be found."
+            Write-Output "Verify the Automation Account Exists and that your session is connect to the correct Azure Subscription and try again."
+            exit
+        }
+    }
+
+    # Get Azure Automation Nodes
+    $nodes = Get-AzAutomationDscNode -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName
+
+    foreach ($node in $nodes)
+    {
+        $configName = "STIG_" + $node.Name.Replace("-","_")
+
+        try
+        {
+            $nodeConfig = Get-AzAutomationDscConfiguration -Name $configName -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -ErrorAction 'Stop'
+            $null = $node | Set-AzAutomationDscNode -NodeConfigurationName $nodeConfig.Name -Force
+        }
+        catch
+        {
+            Write-Output "`tConfiguration Assignment Failed. Trying Node Configuration."
+            $tryNodeConfig = $true
+        }
+
+        if ($tryNodeConfig)
+        {
+            try
+            {
+                $nodeConfig = Get-AzAutomationDscNodeConfiguration -Name $configName -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -ErrorAction 'Stop'
+                $null = $node | Set-AzAutomationDscNode -NodeConfigurationName $nodeConfig
+            }
+            catch
+            {
+                Write-Output "`tDscNodeConfiguration Assignment Failed. Trying DscConfiguration."
+            }
+        }
+    }
 }
