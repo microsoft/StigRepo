@@ -1700,12 +1700,17 @@ function Set-AzAutomationNodeConfigs
 
         [Parameter(Mandatory=$true)]
         [string]
-        $AutomationAccountName
+        $AutomationAccountName,
 
+        [Parameter()]
+        [switch]
+        $SkipValidation
     )
 
     if (-not $SkipValidation)
     {
+
+        Write-Output "Validating Environment for DSC Node Configuration Assignments"
         # Validate Repository
         try
         {
@@ -1743,41 +1748,65 @@ function Set-AzAutomationNodeConfigs
         }
         catch
         {
-            Write-Output "`nAutomation Account is invalid or cannot be found."
-            Write-Output "Verify the Automation Account Exists and that your session is connect to the correct Azure Subscription and try again."
+            Write-Output "`tAutomation Account is invalid or cannot be found."
+            Write-Output "`tVerify the Automation Account Exists and that your session is connect to the correct Azure Subscription and try again."
             exit
         }
     }
 
-    # Get Azure Automation Nodes
+    # Start Configuration Assignments
+    Write-Output "`nStarting DSC Node Configuration Assignments"
+
+    # Get DSC Nodes
+    Write-Output "`tGetting Azure Automation DSC Nodes"
     $nodes = Get-AzAutomationDscNode -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName
+
+    if ($nodes.count -eq 0)
+    {
+        Write-Output "`tNo DSC Nodes Found"
+        exit
+    }
+
+    # Get DSC Node Configs
+    Write-Output "`tGetting Azure Automation DSC Node Configurations"
+    $nodeConfigs = Get-AzAutomationDscNodeConfiguration -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName
+
+    if ($nodeConfigs.count -eq 0)
+    {
+        Write-Output "`tNo DSC Node Configurations Found"
+        exit
+    }
 
     foreach ($node in $nodes)
     {
+        Write-Output "`tAssiging Node Configuration to $($node.Name)"
+        $tryNodeConfig = $false
         $configName = "STIG_" + $node.Name.Replace("-","_")
 
         try
         {
-            $nodeConfig = Get-AzAutomationDscConfiguration -Name $configName -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -ErrorAction 'Stop'
-            $null = $node | Set-AzAutomationDscNode -NodeConfigurationName $nodeConfig.Name -Force
+            $nodeConfig = $nodeConfigs | Where-Object {$_.Name -like "*$configName*"}
+            $null = $node | Set-AzAutomationDscNode -NodeConfigurationName $nodeConfig -Force -ErrorAction 'Stop'
         }
         catch
         {
-            Write-Output "`tConfiguration Assignment Failed. Trying Node Configuration."
-            $tryNodeConfig = $true
+            Write-Output "`tDscNodeConfiguration Assignment Failed. Trying DscConfiguration."
+            $tryDscConfig = $true
         }
 
-        if ($tryNodeConfig)
+        if ($tryDscConfig)
         {
             try
             {
-                $nodeConfig = Get-AzAutomationDscNodeConfiguration -Name $configName -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -ErrorAction 'Stop'
-                $null = $node | Set-AzAutomationDscNode -NodeConfigurationName $nodeConfig
+                $nodeConfig = Get-AzAutomationDscConfiguration -Name $configName -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -ErrorAction 'Stop'
+                $null = $node | Set-AzAutomationDscNode -NodeConfigurationName $nodeConfig.Name -Force
             }
             catch
             {
-                Write-Output "`tDscNodeConfiguration Assignment Failed. Trying DscConfiguration."
+                Write-Warning "$($node.Name) - Configuration Assignment Failed. Confirm that a DSC configuration has been published and try again.`n"
+                continue
             }
         }
     }
+    Write-Output "DSC Node Configuration Assignment Complete."
 }
