@@ -98,6 +98,7 @@ function New-SystemData
     $targetMachineOus   = New-Object System.Collections.ArrayList
     $targetMachines     = New-Object System.Collections.ArrayList
     $orgUnits           = New-Object System.Collections.ArrayList
+    $osVersion          = (Get-WmiObject Win32_OperatingSystem).caption
 
     Write-Output "`tBeginning DSC Configuration Data Build - Identifying Target Systems."
 
@@ -112,17 +113,30 @@ function New-SystemData
         "AllServers"    {$targetMachines = @(Get-ADComputer -Filter {OperatingSystem -like "**server*"} -Properties "operatingsystem", "distinguishedname") ; break }
         "Full"          {$targetMachines = @(Get-ADComputer -Filter * -Properties "operatingsystem", "distinguishedname") ; break }
         "Targeted"      {$targetMachines = @(Get-AdComputer -Identity "$ComputerName" -Properties "operatingsystem","distinguishedname") ; break }
-        "Local"
+        "Local" {
+
+        if ($osVersion -like '*Server*') {
+           
+            $targetMachines = @(
+                @{
+                    Name              = $env:computerName
+                    OperatingSystem   = $osVersion
+                    distinguishedname = "Servers"
+                }
+            )
+        }    
+        else 
         {
             $targetMachines = @(
                 @{
-                    Name = $env:computerName
-                    OperatingSystem     = "Windows 10"
-                    distinguishedname   = "Computers"
+                    Name              = $env:computerName
+                    OperatingSystem   = $osVersion
+                    distinguishedname = "Computers"
                 }
             )
         }
     }
+}
 
     Write-Output "`tIdentifying Organizational Units for $($targetMachines.count) systems."
 
@@ -232,14 +246,9 @@ function New-SystemData
                     $IncludeFilePaths   = $using:IncludeFilePaths
 
                     #region Get Applicable STIGs
-                    if ($LocalHost)
-                    {
-                        $applicableStigs = @(Get-ApplicableStigs -LocalHost)
-                    }
-                    else
-                    {
-                        $applicableStigs = @(Get-ApplicableStigs -Computername $machine)
-                    }
+
+                     $applicableStigs = @(Get-ApplicableStigs -Computername $machine)
+                    
                     
                     if ($IncludeFilePaths)
                     {
