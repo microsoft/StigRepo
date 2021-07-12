@@ -32,17 +32,20 @@ function Initialize-StigRepo
     )
 
     # Folder Dialog Pop Up
-    $Topmost = New-Object System.Windows.Forms.Form
-    $Topmost.TopMost = $True
-    $Topmost.MinimizeBox = $True
+    $topMost = New-Object System.Windows.Forms.Form
+    $topMost.TopMost = $True
+    $topMost.MinimizeBox = $True
     [void] [System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms')
-    $FolderBrowserDialog = New-Object System.Windows.Forms.FolderBrowserDialog
-    $FolderBrowserDialog.RootFolder = 'MyComputer'
-    $FolderBrowserDialog.Description = "Select location to copy repository to";
-    if ($initialDirectory) { $FolderBrowserDialog.SelectedPath = $initialDirectory }
-    $FolderBrowserDialog
-    [void] $FolderBrowserDialog.ShowDialog($Topmost)
-    Set-Location $FolderBrowserDialog.SelectedPath
+    $folderBrowserDialog = New-Object System.Windows.Forms.FolderBrowserDialog
+    $folderBrowserDialog.RootFolder = 'MyComputer'
+    $folderBrowserDialog.Description = "Select location to copy repository to";
+    $folderBrowserDialog_cancelButton_Click={}
+
+    if ($initialDirectory) { $folderBrowserDialog.SelectedPath = $initialDirectory }
+    $folderBrowserDialog
+    [void] $folderBrowserDialog.ShowDialog($Topmost)
+    Set-Location $folderBrowserDialog.SelectedPath
+    $folderBrowserDialog
     $RootPath = (Get-Location).Path
 
     Write-Output "Beginning Stig Compliance Automation Repository (SCAR) Build"
