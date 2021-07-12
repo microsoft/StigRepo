@@ -174,6 +174,11 @@ function New-SystemData
             $targetMachines = $env:ComputerName
             $ouFolder = "$SystemsPath\$env:computerName"
         }
+        elseif ($scope -eq "Targeted")
+        {
+        $targetMachines = $targetMachines.Name
+        $ouFolder = "$SystemsPath\$($ou.name)"
+        }
         elseif ($ou -eq "Computers")
         {
             $computersContainer = (Get-ADDomain).ComputersContainer
