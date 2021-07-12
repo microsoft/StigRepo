@@ -45,7 +45,6 @@ function Initialize-StigRepo
     $folderBrowserDialog
     [void] $folderBrowserDialog.ShowDialog($Topmost)
     Set-Location $folderBrowserDialog.SelectedPath
-    $folderBrowserDialog
     $RootPath = (Get-Location).Path
 
     Write-Output "Beginning Stig Compliance Automation Repository (SCAR) Build"
