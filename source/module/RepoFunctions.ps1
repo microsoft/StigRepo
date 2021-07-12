@@ -31,6 +31,20 @@ function Initialize-StigRepo
 
     )
 
+    # Folder Dialog Pop Up
+    $Topmost = New-Object System.Windows.Forms.Form
+    $Topmost.TopMost = $True
+    $Topmost.MinimizeBox = $True
+    [void] [System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms')
+    $FolderBrowserDialog = New-Object System.Windows.Forms.FolderBrowserDialog
+    $FolderBrowserDialog.RootFolder = 'MyComputer'
+    $FolderBrowserDialog.Description = "Select location to copy repository to";
+    if ($initialDirectory) { $FolderBrowserDialog.SelectedPath = $initialDirectory }
+    $FolderBrowserDialog
+    [void] $FolderBrowserDialog.ShowDialog($Topmost)
+    Set-Location $FolderBrowserDialog.SelectedPath
+    $RootPath = (Get-Location).Path
+
     Write-Output "Beginning Stig Compliance Automation Repository (SCAR) Build"
 
     Write-Output "`tBuilding Repository Folder Structure"
