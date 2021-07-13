@@ -113,35 +113,35 @@ function New-SystemData
         "AllServers"    {$targetMachines = @(Get-ADComputer -Filter {OperatingSystem -like "**server*"} -Properties "operatingsystem", "distinguishedname") ; break }
         "Full"          {$targetMachines = @(Get-ADComputer -Filter * -Properties "operatingsystem", "distinguishedname") ; break }
         "Targeted"      {$targetMachines = @(Get-AdComputer -Identity "$ComputerName" -Properties "operatingsystem","distinguishedname") ; break }
-        "Local" {
-
-        if ($osVersion -like '*Server*') {
-           
-            $targetMachines = @(
-                @{
-                    Name              = $env:computerName
-                    OperatingSystem   = $osVersion
-                    distinguishedname = "Servers"
-                }
-            )
-        }    
-        else 
+        "Local" 
         {
-            $targetMachines = @(
-                @{
-                    Name              = $env:computerName
-                    OperatingSystem   = $osVersion
-                    distinguishedname = "Computers"
-                }
-            )
+            if ($osVersion -like '*Server*') 
+            {           
+                $targetMachines = @(
+                    @{
+                        Name              = $env:computerName
+                        OperatingSystem   = $osVersion
+                        distinguishedname = "Servers"
+                    }
+                )
+            }    
+            else 
+            {
+                $targetMachines = @(
+                    @{
+                        Name              = $env:computerName
+                        OperatingSystem   = $osVersion
+                        distinguishedname = "Computers"
+                    }
+                )
+            }
         }
     }
-}
-
-    Write-Output "`tIdentifying Organizational Units for $($targetMachines.count) systems."
 
     if (-not($Localhost))
     {
+        Write-Output "`tIdentifying Organizational Units for $($targetMachines.count) systems."
+        
         if ($RootOrgUnit)
         {
             $orgUnits = Get-ADOrganizationalUnit -SearchBase $SearchBase -SearchScope OneLevel
@@ -186,6 +186,7 @@ function New-SystemData
         if ($LocalHost -or ($scope -eq "Local"))
         {
             $targetMachines = $env:ComputerName
+            $ou = "LocalHost"
             $ouFolder = "$SystemsPath\$env:computerName"
         }
         elseif ($ou -eq "Computers")
