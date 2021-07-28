@@ -176,8 +176,8 @@ function New-SystemData
         }
         elseif ($scope -eq "Targeted")
         {
-        $targetMachines = $targetMachines.Name
-        $ouFolder = "$SystemsPath\$($ou.name)"
+            $targetMachines = $targetMachines.Name
+            $ouFolder = "$SystemsPath\$($ou.name)"
         }
         elseif ($ou -eq "Computers")
         {
