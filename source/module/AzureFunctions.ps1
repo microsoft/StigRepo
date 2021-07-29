@@ -30,6 +30,10 @@ function New-AzSystemData
         [string]
         $ResourceGroupName,
 
+        [Parameter()]
+        [switch]
+        $DomainControllers,
+
         # [Parameter()]
         # [switch]
         # $IncludeFilePaths,
@@ -108,6 +112,7 @@ function New-AzSystemData
                 $applicableStigs    = New-Object System.Collections.ArrayList
 
                 #region STIG Applicability
+
                 switch -wildcard ($osType)
                 {
                     "*WindowsServer"
