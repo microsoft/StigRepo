@@ -27,12 +27,27 @@ function Initialize-StigRepo
     (
         [Parameter()]
         [string]
-        $RootPath = (Get-Location).Path
+        $RootPath
 
     )
 
     Write-Output "Beginning Stig Compliance Automation Repository (SCAR) Build"
 
+    if ('' -eq $RootPath)
+    {
+        $currentLocation = (Get-Location).Path
+        $prompt = Read-Host -Prompt "`n`tThe `$RootPath Parameter was not provided.`n`tCurrent Location: $currentLocation`n`tDo you want to initialize the repository at your current location? Y/N"
+
+        if ($prompt -like "y*")
+        {
+            $RootPath = (Get-Location).Path
+        }
+        else 
+        {
+            Write-Output "`nRepository Initialization Cancelled."
+            return
+        }
+    }
     Write-Output "`tBuilding Repository Folder Structure"
 
     # Systems Folder
@@ -58,12 +73,20 @@ function Initialize-StigRepo
     $wikiPath       = New-Item -Path "$resourcePath\Wiki" -ItemType Directory -Force
 
     Write-Output "`tExtracting Resource Files"
-    $moduleRoot = Split-Path -Path (Get-Module StigRepo).Path -Parent
-    $configZip = "$moduleRoot\Resources\Configurations.zip"
-    $wikiZip   = "$moduleRoot\Resources\wiki.zip"
-
-    Expand-Archive $configZip -DestinationPath $RootPath -force
-    Expand-Archive $wikiZip -DestinationPath $ResourcePath -force
+    
+    try
+    {
+        $moduleRoot = Split-Path -Path (Get-Module StigRepo).Path -Parent
+        $configZip = "$moduleRoot\Resources\Configurations.zip"
+        $wikiZip   = "$moduleRoot\Resources\wiki.zip"
+        Expand-Archive $configZip -DestinationPath $RootPath -force
+        Expand-Archive $wikiZip -DestinationPath $ResourcePath -force
+    }
+    catch
+    {
+        Write-Output "The StigRepo Module is not imported. Please re-import the module and try again."
+        return
+    }
 
     Update-StigRepo -RemoveBackup -SkipStigRepoModule
 
