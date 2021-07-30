@@ -351,12 +351,18 @@ function Start-DscBuild
     )
 
     # Root Folder Paths
-    $SystemsPath     = (Resolve-Path -Path "$RootPath\*Systems").Path
-    $dscConfigPath   = (Resolve-Path -Path "$RootPath\*Configurations").Path
-    $resourcePath    = (Resolve-Path -Path "$RootPath\*Resources").Path
-    $artifactPath    = (Resolve-Path -Path "$RootPath\*Artifacts").Path
-    $reportsPath     = (Resolve-Path -Path "$RootPath\*Artifacts\Reports").Path
-    $mofPath         = (Resolve-Path -Path "$RootPath\*Artifacts\Mofs").Path
+    try {
+        $SystemsPath     = (Resolve-Path -Path "$RootPath\Systems" -ErrorAction Stop).Path
+        $dscConfigPath   = (Resolve-Path -Path "$RootPath\Configurations" -ErrorAction Stop).Path
+        $resourcePath    = (Resolve-Path -Path "$RootPath\Resources" -ErrorAction Stop).Path
+        $artifactPath    = (Resolve-Path -Path "$RootPath\Artifacts" -ErrorAction Stop).Path
+        $mofPath         = (Resolve-Path -Path "$RootPath\Artifacts\Mofs" -ErrorAction Stop).Path      
+    }
+    catch 
+    {
+        Write-Output "The provided RootPath is not not a Valid Stig Repository Location - $RootPath"
+        return
+    }
 
     # Begin Build
     Write-Output "Beginning Desired State Configuration Build Process`r`n"
@@ -451,13 +457,14 @@ function Get-CombinedConfigs
 
     try
     {
-        $SystemsPath    = (Resolve-Path -Path "$Rootpath\*Systems").Path
-        $artifactPath   = (Resolve-Path -Path "$Rootpath\*Artifacts").Path
+        $systemsPath    = Resolve-Path -Path "$Rootpath\*Systems"
+        $artifactPath   = (Resolve-Path -Path "$Rootpath\*Artifacts" -ErrorAction Stop).Path
         if ("" -eq $AllNodesDataFile) { $AllNodesDataFile = "$artifactPath\DscConfigs\AllNodes.psd1" }
     }
     catch
     {
-        Write-Output "$RootPath is not a valid repository.";exit
+        Write-Output "$RootPath is not a valid repository."
+        break
     }
 
     Write-Output "`tBeginning System Data Processing"
@@ -485,7 +492,8 @@ function Get-CombinedConfigs
 
     if ($buildFiles.count -lt 1)
     {
-        Write-Output "`t`tNo DSC configdata files were provided.";exit
+        Write-Output "`t`tNo DSC configdata files were provided."
+        break
     }
     else
     {
@@ -860,16 +868,16 @@ function Remove-StigRepoData
 
     try
     {
-        $artifactPath   = (Resolve-Path "$RootPath\*Artifacts" -ErrorAction 'Stop').Path
+        $artifactPath   = (Resolve-Path "$RootPath\Artifacts" -ErrorAction 'Stop').Path
         $mofPath        = (Resolve-Path "$ArtifactPath\Mofs" -ErrorAction 'Stop').Path
         $cklPath        = (Resolve-Path "$ArtifactPath\STIG Checklists" -ErrorAction 'Stop').Path
         $dscConfigPath  = (Resolve-Path "$ArtifactPath\DscConfigs" -ErrorAction 'Stop').Path
-        $SystemsPath    = (Resolve-Path "$RootPath\Systems" -ErrorAction 'Stop').Path
+        $systemsPath    = (Resolve-Path "$RootPath\Systems" -ErrorAction 'Stop').Path
     }
     catch
     {
         Write-Output "`t$RootPath is not a valid Stig Compliance Automation Repository."
-        Exit
+        return
     }
 
     Write-Output "`tGathing StigRepo Files to remove"
@@ -957,7 +965,7 @@ function Import-DscModules
     catch
     {
         Write-Output "`t$RootPath is not a valid STIG Complaince Automation Repository"
-        Exit
+        return
     }
 
     $modules = @(Get-ChildItem -Path $ModulePath -Directory -Depth 0)
