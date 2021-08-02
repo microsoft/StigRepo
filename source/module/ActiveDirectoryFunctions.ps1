@@ -150,22 +150,10 @@ function New-SystemData
         {
             foreach ($targetMachine in $targetMachines)
             {
-                if ($targetMachine.distinguishedname -like "CN=$($targetMachine.name),OU=Servers*")
-                {
-                    $null = $targetMachineOus.add($targetMachine.distinguishedname.Replace("CN=$($targetMachine.name),OU=Servers,",""))
-                }
-                elseif ($targetMachine.distinguishedName -like "*OU=Servers*")
-                {
-                    $oustring = ''
-                    ($targetMachine.DistinguishedName.split(',')[3..10] | ForEach-Object { $null = $oustring += "$_," })
-                    $null = $targetMachineOus.add($ouString.trimend(','))
-                }
-                else
-                {
-                    $null = $targetMachineOus.add($targetMachine.distinguishedname.Replace("CN=$($targetMachine.name),",""))
-                }
+                $targetMachineOUs += $targetMachine.DistinguishedName.Split(",")[1].replace("OU=","")
             }
-            $targetMachineOus | Get-Unique | ForEach-Object {Get-ADOrganizationalUnit -Filter {DistinguishedName -eq $_}} | ForEach-Object {$null = $orgunits.add($_)}
+
+            $targetMachineOus | Get-Unique | ForEach-Object {Get-ADOrganizationalUnit -Filter {Name -eq $_}} | ForEach-Object {$null = $orgunits.add($_)}
 
             if ($Scope -eq "Full")
             {
