@@ -88,7 +88,7 @@ function Initialize-StigRepo
         return
     }
 
-    Update-StigRepo -RemoveBackup -SkipStigRepoModule
+    Update-StigRepo -RemoveBackup
 
     Write-Output "`n`tInstalling/Importing SCAR Modules"
     Sync-DscModules -LocalHost -Force
@@ -119,15 +119,11 @@ function Update-StigRepo
     Skips downloading/updating PowerSTIG and dependent modules
 
     .EXAMPLE
-
     Update the STIG Compliance Automation Repository in the current filepath
-
     Update-StigRepo
 
     .EXAMPLE
-
     Update the STIG Compliance Automation Repository within a specified folderpath
-
     Initialize-StigRepo -RootPath "C:\StigRepo"
 
     #>
