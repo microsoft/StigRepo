@@ -1022,7 +1022,9 @@ function New-SystemData
                 }
                 $null = $jobs.add($job.Id)
             }
+            
             Write-Output "`t`tJob creation for $($ou.name) System Data is complete. Waiting on $($jobs.count) jobs to finish processing."
+            
             if ($jobs.count -ge 1)
             {
                 do
@@ -1030,7 +1032,7 @@ function New-SystemData
                     $completedJobs  = (Get-Job -ID $jobs | Where-Object {$_.state -ne "Running"}).count
                     $runningjobs    = (Get-Job -ID $jobs | Where-Object {$_.state -eq "Running"}).count
                     Write-Output "`t`t$($ou.Name) System Data Status:`t$runningJobs Jobs Currently Processing`t$completedJobs/$($jobs.count) Jobs Completed"
-                    Start-Sleep -Seconds 30
+                    Start-Sleep -Seconds 15
                 }
                 while ((Get-Job -ID $jobs).State -contains "Running")
                 Write-Output "`t`t$($jobs.count) System Data jobs completed. Outputting Results."
