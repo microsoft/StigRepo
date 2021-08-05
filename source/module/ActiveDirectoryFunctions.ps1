@@ -94,7 +94,7 @@ function New-SystemData
         }
     )
     $IncludeFilePaths   = $true
-    $SystemsPath        = (Resolve-Path -Path "$RootPath\*Systems").Path
+    $SystemsPath        = (Resolve-Path -Path "$RootPath\Systems").Path
     $targetMachineOus   = New-Object System.Collections.ArrayList
     $targetMachines     = New-Object System.Collections.ArrayList
     $orgUnits           = New-Object System.Collections.ArrayList
@@ -150,10 +150,17 @@ function New-SystemData
         {
             foreach ($targetMachine in $targetMachines)
             {
-                $targetMachineOUs += $targetMachine.DistinguishedName.Split(",")[1].replace("OU=","")
+                $targetMachineOUs += $targetMachine.DistinguishedName.Split(',')[1].split('=')[1]
             }
 
-            $targetMachineOus | Get-Unique | ForEach-Object {Get-ADOrganizationalUnit -Filter {Name -eq $_}} | ForEach-Object {$null = $orgunits.add($_)}
+            $uniqueOUs = $targetMachineOus | Get-Unique 
+            
+            foreach ($ouName in $uniqueOUs)
+            {
+                $filter = [scriptblock]::Create("Name -eq `"$ouName`"")
+                $ouObject = Get-ADOrganizationalUnit -Filter $filter
+                $null = $orgUnits.add($ouObject)
+            }
 
             if ($Scope -eq "Full")
             {
