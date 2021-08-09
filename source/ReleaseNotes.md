@@ -1,4 +1,4 @@
-# StigRepo Version 1.4 ReleaseNotes
+# StigRepo Version 1.4 Release Notes
 
 ## Overview
 
