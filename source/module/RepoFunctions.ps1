@@ -11,13 +11,7 @@ function Initialize-StigRepo
     Path to the root of the SCAR repository/codebase.
 
     .EXAMPLE
-    Build the STIG Compliance Automation Repository within the current filepath
-
-    Initialize-StigRepo
-
-    .EXAMPLE
     Build the STIG Compliance Automation Repository within a specified folderpath
-
     Initialize-StigRepo -RootPath "C:\StigRepo"
 
     #>
@@ -28,7 +22,6 @@ function Initialize-StigRepo
         [Parameter()]
         [string]
         $RootPath
-
     )
 
     Write-Output "Beginning Stig Compliance Automation Repository (SCAR) Build"
@@ -88,7 +81,7 @@ function Initialize-StigRepo
         return
     }
 
-    Update-StigRepo -RemoveBackup
+    Update-StigRepo -RemoveBackup -SkipStigRepoModule
 
     Write-Output "`n`tInstalling/Importing SCAR Modules"
     Sync-DscModules -LocalHost -Force
@@ -119,11 +112,15 @@ function Update-StigRepo
     Skips downloading/updating PowerSTIG and dependent modules
 
     .EXAMPLE
+
     Update the STIG Compliance Automation Repository in the current filepath
+
     Update-StigRepo
 
     .EXAMPLE
+
     Update the STIG Compliance Automation Repository within a specified folderpath
+
     Initialize-StigRepo -RootPath "C:\StigRepo"
 
     #>
@@ -169,7 +166,14 @@ function Update-StigRepo
         Write-Output "`t`tUpdating StigRepo Module"
         try
         {
-            Save-Module StigRepo -Path $ModulePath -Verbose
+            if ($verbose)
+            {
+                Save-Module StigRepo -Path $ModulePath -Verbose
+            }
+            else 
+            {
+                Save-Module StigRepo -Path $ModulePath
+            }
         }
         catch
         {
@@ -183,7 +187,14 @@ function Update-StigRepo
         Write-Output "`t`tUpdating PowerSTIG Module and Dependencies"
         try
         {
-            Save-Module PowerSTIG -Path $ModulePath -Verbose
+            if ($verbose)
+            {
+                Save-Module PowerSTIG -Path $ModulePath -Verbose
+            }
+            else 
+            {
+                Save-Module PowerSTIG -Path $ModulePath
+            }
         }
         catch
         {
@@ -349,6 +360,10 @@ function Start-DscBuild
         $TargetFolder,
 
         [Parameter()]
+        [string]
+        $ComputerName,
+        
+        [Parameter()]
         [switch]
         $SyncModules,
 
@@ -409,21 +424,34 @@ function Start-DscBuild
 
     if ($SystemFiles.count -lt 1)
     {
-        if ('' -eq $TargetFolder)
+        $SystemFiles = New-Object System.Collections.ArrayList
+        if ('' -ne $ComputerName)
         {
-            $SystemFiles = New-Object System.Collections.ArrayList
+            $null = Get-ChildItem -Path "$systemsPath\*.psd1" -Recurse | Where-Object { ($_.Fullname -NotLike "*Staging*") -and ($_.Fullname -Notlike "*Readme*") -and ($_.FullName -like "*$ComputerName*")} | ForEach-Object {$null = $Systemfiles.add($_)}
+            Get-CombinedConfigs -RootPath $RootPath -AllNodesDataFile $allNodesDataFile -SystemFiles $SystemFiles
+            Export-DynamicConfigs -SystemFiles $SystemFiles -ArtifactPath $artifactPath -DscConfigPath $dscConfigPath
+            Export-Mofs -RootPath $RootPath -TargetFolder $TargetFolder
+        }
+        elseif ('' -eq $TargetFolder)
+        {
             $null = Get-ChildItem -Path "$SystemsPath\*.psd1" -Recurse | Where-Object { ($_.Fullname -notmatch "Staging") -and ($_.Fullname -Notlike "Readme*")} | ForEach-Object {$null = $systemFiles.add($_)}
             Get-CombinedConfigs -RootPath $RootPath -AllNodesDataFile $allNodesDataFile -SystemFiles $SystemFiles
             Export-DynamicConfigs -SystemFiles $SystemFiles -ArtifactPath $artifactPath -DscConfigPath $dscConfigPath
             Export-Mofs -RootPath $RootPath
         }
-        else
+        elseif ('' -ne $TargetFolder)
         {
             $null = Get-ChildItem -Path "$systemsPath\$TargetFolder\*.psd1" -Recurse | Where-Object { ($_.Fullname -notmatch "Staging") -and ($_.Fullname -Notlike "Readme*")} | ForEach-Object {$null = $Systemfiles.add($_)}
             Get-CombinedConfigs -RootPath $RootPath -AllNodesDataFile $allNodesDataFile -SystemFiles $SystemFiles -TargetFolder $TargetFolder
             Export-DynamicConfigs -SystemFiles $SystemFiles -ArtifactPath $artifactPath -DscConfigPath $dscConfigPath -TargetFolder $TargetFolder
             Export-Mofs -RootPath $RootPath -TargetFolder $TargetFolder
         }
+    }
+    else
+    {
+        Get-CombinedConfigs -RootPath $RootPath -AllNodesDataFile $allNodesDataFile -SystemFiles $SystemFiles
+        Export-DynamicConfigs -SystemFiles $SystemFiles -ArtifactPath $artifactPath -DscConfigPath $dscConfigPath
+        Export-Mofs -RootPath $RootPath
     }
 
     # Archive generated artifacts
@@ -581,7 +609,7 @@ function Export-DynamicConfigs
         $DscConfigPath
     )
 
-    Write-Output "`tStarting DSC Compilation"
+    Write-Output "`n`tStarting DSC Compilation"
     $jobs = New-Object System.Collections.ArrayList
     foreach ($SystemFile in $SystemFiles)
     {
@@ -692,18 +720,18 @@ function Export-DynamicConfigs
                             $localConfig | Out-file $nodeConfigScript -nonewline -Append -Encoding utf8
                         }
                     }
-                    Write-Output "`n`t$nodeName configuration file successfully generated.`r`n"
+                    Write-Output "`t$nodeName configuration file successfully generated.`r`n"
                 }
                 catch
                 {
-                    Write-Output "`n`t$nodeName configuration file failed.`r`n"
+                    Write-Warning "`t$nodeName configuration file failed.`r`n"
                     throw $_
                 }
             }
         }
         $null = $jobs.add($job.Id)
     }
-    Write-Output "`tJob Creation complete. Checking status every 30 seconds and output will be displayed once complete."
+    Write-Output "`n`tDSC Compilation jobs started. Checking status every 30 seconds and output will be displayed once complete."
     do
     {
         $completedJobs  = (Get-Job -ID $jobs | where {$_.state -ne "Running"}).count
@@ -841,7 +869,7 @@ function Export-Mofs
             }
         }
     }
-    Write-Output "`n`tMOF Export Job Creation Complete. Checking status every 30 seconds and output will be displayed once complete."
+    Write-Output "`n`tMOF Export Jobs are currently running. Checking status every 30 seconds and output will be displayed once complete."
     do
     {
         $completedJobs  = (Get-Job -ID $jobs | where {$_.state -ne "Running"}).count

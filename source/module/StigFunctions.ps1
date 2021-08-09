@@ -87,7 +87,7 @@ function Get-StigChecklists
     {
         Import-Module PowerSTIG
         $powerStigPath = Split-Path -Path (Get-Module PowerStig).Path -Parent
-        "$powerStigPath\Module\STIG\Functions.Checklist.ps1"
+        . "$powerStigPath\Module\STIG\Functions.Checklist.ps1"
     }
     catch
     {
