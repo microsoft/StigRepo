@@ -87,7 +87,7 @@ function Get-StigChecklists
     {
         Import-Module PowerSTIG
         $powerStigPath = Split-Path -Path (Get-Module PowerStig).Path -Parent
-        "$powerStigPath\Module\STIG\Functions.Checklist.ps1"
+        . "$powerStigPath\Module\STIG\Functions.Checklist.ps1"
     }
     catch
     {
@@ -1319,26 +1319,15 @@ function Get-StigFiles
                     $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\McAfee" -ErrorAction SilentlyContinue).Path
                     $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*McAfee*ManualChecks.psd1"}).basename 
                 }
-                "Office2016*"
+                "Office*"
                 {
                     $officeApp              = $stigType.split('_')[1]
-                    $officeVersion          = $stigType.split('_')[0].TrimStart("office")
+                    $officeVersion          = $stigType.split('_')[0].TrimStart("Office")
                     $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\Office" -ErrorAction SilentlyContinue).Path
-                    $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*$officeApp*ManualChecks.psd1"}).basename
-                    $stigVersions           = $manualCheckFiles | Select-String "(\d+)R(\d+)" -AllMatches | Foreach-Object {$_.Matches.Value}
+                    $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*$officeApp*$officeVersion*ManualChecks.psd1"}).basename
+                    $stigVersions           = $manualCheckFiles | Select-String "(\d+).(\d+)" -AllMatches | Foreach-Object {$_.Matches.Value}
                     $latestVersion          = ($stigVersions | Measure-Object -Maximum).Maximum
-                    $manualCheckFileName    = $manualCheckFiles | Where-Object { $_ -like "*$officeApp*$latestVersion*" }
-                    $stigFilePath           = "$manualCheckContainer\$manualCheckFileName.psd1" 
-                }
-                "Office2013*"
-                {
-                    $officeApp              = $stigType.split('_')[1]
-                    $officeVersion          = $stigType.split('_')[0].TrimStart("office")
-                    $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\Office_2013" -ErrorAction SilentlyContinue).Path
-                    $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*$officeApp*ManualChecks.psd1"}).basename
-                    $stigVersions           = $manualCheckFiles | Select-String "(\d+)R(\d+)" -AllMatches | Foreach-Object {$_.Matches.Value}
-                    $latestVersion          = ($stigVersions | Measure-Object -Maximum).Maximum
-                    $manualCheckFileName    = $manualCheckFiles | Where-Object { $_ -like "*$officeApp*$latestVersion*" }
+                    $manualCheckFileName    = $manualCheckFiles | Where-Object { $_ -like "*$latestVersion*" }
                     $stigFilePath           = "$manualCheckContainer\$manualCheckFileName.psd1" 
                 }
                 "OracleJRE"

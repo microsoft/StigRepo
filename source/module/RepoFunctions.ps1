@@ -11,13 +11,7 @@ function Initialize-StigRepo
     Path to the root of the SCAR repository/codebase.
 
     .EXAMPLE
-    Build the STIG Compliance Automation Repository within the current filepath
-
-    Initialize-StigRepo
-
-    .EXAMPLE
     Build the STIG Compliance Automation Repository within a specified folderpath
-
     Initialize-StigRepo -RootPath "C:\StigRepo"
 
     #>
@@ -27,12 +21,26 @@ function Initialize-StigRepo
     (
         [Parameter()]
         [string]
-        $RootPath = (Get-Location).Path
-
+        $RootPath
     )
 
     Write-Output "Beginning Stig Compliance Automation Repository (SCAR) Build"
 
+    if ('' -eq $RootPath)
+    {
+        $currentLocation = (Get-Location).Path
+        $prompt = Read-Host -Prompt "`n`tThe `$RootPath Parameter was not provided.`n`tCurrent Location: $currentLocation`n`tDo you want to initialize the repository at your current location? Y/N"
+
+        if ($prompt -like "y*")
+        {
+            $RootPath = (Get-Location).Path
+        }
+        else 
+        {
+            Write-Output "`nRepository Initialization Cancelled."
+            return
+        }
+    }
     Write-Output "`tBuilding Repository Folder Structure"
 
     # Systems Folder
@@ -58,12 +66,20 @@ function Initialize-StigRepo
     $wikiPath       = New-Item -Path "$resourcePath\Wiki" -ItemType Directory -Force
 
     Write-Output "`tExtracting Resource Files"
-    $moduleRoot = Split-Path -Path (Get-Module StigRepo).Path -Parent
-    $configZip = "$moduleRoot\Resources\Configurations.zip"
-    $wikiZip   = "$moduleRoot\Resources\wiki.zip"
-
-    Expand-Archive $configZip -DestinationPath $RootPath -force
-    Expand-Archive $wikiZip -DestinationPath $ResourcePath -force
+    
+    try
+    {
+        $moduleRoot = Split-Path -Path (Get-Module StigRepo).Path -Parent
+        $configZip = "$moduleRoot\Resources\Configurations.zip"
+        $wikiZip   = "$moduleRoot\Resources\wiki.zip"
+        Expand-Archive $configZip -DestinationPath $RootPath -force
+        Expand-Archive $wikiZip -DestinationPath $ResourcePath -force
+    }
+    catch
+    {
+        Write-Output "The StigRepo Module is not imported. Please re-import the module and try again."
+        return
+    }
 
     Update-StigRepo -RemoveBackup -SkipStigRepoModule
 
@@ -150,7 +166,14 @@ function Update-StigRepo
         Write-Output "`t`tUpdating StigRepo Module"
         try
         {
-            Save-Module StigRepo -Path $ModulePath -Verbose
+            if ($verbose)
+            {
+                Save-Module StigRepo -Path $ModulePath -Verbose
+            }
+            else 
+            {
+                Save-Module StigRepo -Path $ModulePath
+            }
         }
         catch
         {
@@ -164,7 +187,14 @@ function Update-StigRepo
         Write-Output "`t`tUpdating PowerSTIG Module and Dependencies"
         try
         {
-            Save-Module PowerSTIG -Path $ModulePath -Verbose
+            if ($verbose)
+            {
+                Save-Module PowerSTIG -Path $ModulePath -Verbose
+            }
+            else 
+            {
+                Save-Module PowerSTIG -Path $ModulePath
+            }
         }
         catch
         {
@@ -330,6 +360,10 @@ function Start-DscBuild
         $TargetFolder,
 
         [Parameter()]
+        [string]
+        $ComputerName,
+        
+        [Parameter()]
         [switch]
         $SyncModules,
 
@@ -351,12 +385,18 @@ function Start-DscBuild
     )
 
     # Root Folder Paths
-    $SystemsPath     = (Resolve-Path -Path "$RootPath\*Systems").Path
-    $dscConfigPath   = (Resolve-Path -Path "$RootPath\*Configurations").Path
-    $resourcePath    = (Resolve-Path -Path "$RootPath\*Resources").Path
-    $artifactPath    = (Resolve-Path -Path "$RootPath\*Artifacts").Path
-    $reportsPath     = (Resolve-Path -Path "$RootPath\*Artifacts\Reports").Path
-    $mofPath         = (Resolve-Path -Path "$RootPath\*Artifacts\Mofs").Path
+    try {
+        $SystemsPath     = (Resolve-Path -Path "$RootPath\Systems" -ErrorAction Stop).Path
+        $dscConfigPath   = (Resolve-Path -Path "$RootPath\Configurations" -ErrorAction Stop).Path
+        $resourcePath    = (Resolve-Path -Path "$RootPath\Resources" -ErrorAction Stop).Path
+        $artifactPath    = (Resolve-Path -Path "$RootPath\Artifacts" -ErrorAction Stop).Path
+        $mofPath         = (Resolve-Path -Path "$RootPath\Artifacts\Mofs" -ErrorAction Stop).Path      
+    }
+    catch 
+    {
+        Write-Output "The provided RootPath is not not a Valid Stig Repository Location - $RootPath"
+        return
+    }
 
     # Begin Build
     Write-Output "Beginning Desired State Configuration Build Process`r`n"
@@ -384,21 +424,34 @@ function Start-DscBuild
 
     if ($SystemFiles.count -lt 1)
     {
-        if ('' -eq $TargetFolder)
+        $SystemFiles = New-Object System.Collections.ArrayList
+        if ('' -ne $ComputerName)
         {
-            $SystemFiles = New-Object System.Collections.ArrayList
+            $null = Get-ChildItem -Path "$systemsPath\*.psd1" -Recurse | Where-Object { ($_.Fullname -NotLike "*Staging*") -and ($_.Fullname -Notlike "*Readme*") -and ($_.FullName -like "*$ComputerName*")} | ForEach-Object {$null = $Systemfiles.add($_)}
+            Get-CombinedConfigs -RootPath $RootPath -AllNodesDataFile $allNodesDataFile -SystemFiles $SystemFiles
+            Export-DynamicConfigs -SystemFiles $SystemFiles -ArtifactPath $artifactPath -DscConfigPath $dscConfigPath
+            Export-Mofs -RootPath $RootPath -TargetFolder $TargetFolder
+        }
+        elseif ('' -eq $TargetFolder)
+        {
             $null = Get-ChildItem -Path "$SystemsPath\*.psd1" -Recurse | Where-Object { ($_.Fullname -notmatch "Staging") -and ($_.Fullname -Notlike "Readme*")} | ForEach-Object {$null = $systemFiles.add($_)}
             Get-CombinedConfigs -RootPath $RootPath -AllNodesDataFile $allNodesDataFile -SystemFiles $SystemFiles
             Export-DynamicConfigs -SystemFiles $SystemFiles -ArtifactPath $artifactPath -DscConfigPath $dscConfigPath
             Export-Mofs -RootPath $RootPath
         }
-        else
+        elseif ('' -ne $TargetFolder)
         {
             $null = Get-ChildItem -Path "$systemsPath\$TargetFolder\*.psd1" -Recurse | Where-Object { ($_.Fullname -notmatch "Staging") -and ($_.Fullname -Notlike "Readme*")} | ForEach-Object {$null = $Systemfiles.add($_)}
             Get-CombinedConfigs -RootPath $RootPath -AllNodesDataFile $allNodesDataFile -SystemFiles $SystemFiles -TargetFolder $TargetFolder
             Export-DynamicConfigs -SystemFiles $SystemFiles -ArtifactPath $artifactPath -DscConfigPath $dscConfigPath -TargetFolder $TargetFolder
             Export-Mofs -RootPath $RootPath -TargetFolder $TargetFolder
         }
+    }
+    else
+    {
+        Get-CombinedConfigs -RootPath $RootPath -AllNodesDataFile $allNodesDataFile -SystemFiles $SystemFiles
+        Export-DynamicConfigs -SystemFiles $SystemFiles -ArtifactPath $artifactPath -DscConfigPath $dscConfigPath
+        Export-Mofs -RootPath $RootPath
     }
 
     # Archive generated artifacts
@@ -451,13 +504,14 @@ function Get-CombinedConfigs
 
     try
     {
-        $SystemsPath    = (Resolve-Path -Path "$Rootpath\*Systems").Path
-        $artifactPath   = (Resolve-Path -Path "$Rootpath\*Artifacts").Path
+        $systemsPath    = Resolve-Path -Path "$Rootpath\*Systems"
+        $artifactPath   = (Resolve-Path -Path "$Rootpath\*Artifacts" -ErrorAction Stop).Path
         if ("" -eq $AllNodesDataFile) { $AllNodesDataFile = "$artifactPath\DscConfigs\AllNodes.psd1" }
     }
     catch
     {
-        Write-Output "$RootPath is not a valid repository.";exit
+        Write-Output "$RootPath is not a valid repository."
+        break
     }
 
     Write-Output "`tBeginning System Data Processing"
@@ -485,7 +539,8 @@ function Get-CombinedConfigs
 
     if ($buildFiles.count -lt 1)
     {
-        Write-Output "`t`tNo DSC configdata files were provided.";exit
+        Write-Output "`t`tNo DSC configdata files were provided."
+        break
     }
     else
     {
@@ -554,7 +609,7 @@ function Export-DynamicConfigs
         $DscConfigPath
     )
 
-    Write-Output "`tStarting DSC Compilation"
+    Write-Output "`n`tStarting DSC Compilation"
     $jobs = New-Object System.Collections.ArrayList
     foreach ($SystemFile in $SystemFiles)
     {
@@ -665,18 +720,18 @@ function Export-DynamicConfigs
                             $localConfig | Out-file $nodeConfigScript -nonewline -Append -Encoding utf8
                         }
                     }
-                    Write-Output "`n`t$nodeName configuration file successfully generated.`r`n"
+                    Write-Output "`t$nodeName configuration file successfully generated.`r`n"
                 }
                 catch
                 {
-                    Write-Output "`n`t$nodeName configuration file failed.`r`n"
+                    Write-Warning "`t$nodeName configuration file failed.`r`n"
                     throw $_
                 }
             }
         }
         $null = $jobs.add($job.Id)
     }
-    Write-Output "`tJob Creation complete. Checking status every 30 seconds and output will be displayed once complete."
+    Write-Output "`n`tDSC Compilation jobs started. Checking status every 30 seconds and output will be displayed once complete."
     do
     {
         $completedJobs  = (Get-Job -ID $jobs | where {$_.state -ne "Running"}).count
@@ -814,7 +869,7 @@ function Export-Mofs
             }
         }
     }
-    Write-Output "`n`tMOF Export Job Creation Complete. Checking status every 30 seconds and output will be displayed once complete."
+    Write-Output "`n`tMOF Export Jobs are currently running. Checking status every 30 seconds and output will be displayed once complete."
     do
     {
         $completedJobs  = (Get-Job -ID $jobs | where {$_.state -ne "Running"}).count
@@ -860,16 +915,16 @@ function Remove-StigRepoData
 
     try
     {
-        $artifactPath   = (Resolve-Path "$RootPath\*Artifacts" -ErrorAction 'Stop').Path
+        $artifactPath   = (Resolve-Path "$RootPath\Artifacts" -ErrorAction 'Stop').Path
         $mofPath        = (Resolve-Path "$ArtifactPath\Mofs" -ErrorAction 'Stop').Path
         $cklPath        = (Resolve-Path "$ArtifactPath\STIG Checklists" -ErrorAction 'Stop').Path
         $dscConfigPath  = (Resolve-Path "$ArtifactPath\DscConfigs" -ErrorAction 'Stop').Path
-        $SystemsPath    = (Resolve-Path "$RootPath\Systems" -ErrorAction 'Stop').Path
+        $systemsPath    = (Resolve-Path "$RootPath\Systems" -ErrorAction 'Stop').Path
     }
     catch
     {
         Write-Output "`t$RootPath is not a valid Stig Compliance Automation Repository."
-        Exit
+        return
     }
 
     Write-Output "`tGathing StigRepo Files to remove"
@@ -957,7 +1012,7 @@ function Import-DscModules
     catch
     {
         Write-Output "`t$RootPath is not a valid STIG Complaince Automation Repository"
-        Exit
+        return
     }
 
     $modules = @(Get-ChildItem -Path $ModulePath -Directory -Depth 0)
