@@ -94,7 +94,7 @@ function New-SystemData
         }
     )
     $IncludeFilePaths   = $true
-    $SystemsPath        = (Resolve-Path -Path "$RootPath\*Systems").Path
+    $SystemsPath        = (Resolve-Path -Path "$RootPath\Systems").Path
     $targetMachineOus   = New-Object System.Collections.ArrayList
     $targetMachines     = New-Object System.Collections.ArrayList
     $orgUnits           = New-Object System.Collections.ArrayList
@@ -150,22 +150,17 @@ function New-SystemData
         {
             foreach ($targetMachine in $targetMachines)
             {
-                if ($targetMachine.distinguishedname -like "CN=$($targetMachine.name),OU=Servers*")
-                {
-                    $null = $targetMachineOus.add($targetMachine.distinguishedname.Replace("CN=$($targetMachine.name),OU=Servers,",""))
-                }
-                elseif ($targetMachine.distinguishedName -like "*OU=Servers*")
-                {
-                    $oustring = ''
-                    ($targetMachine.DistinguishedName.split(',')[3..10] | ForEach-Object { $null = $oustring += "$_," })
-                    $null = $targetMachineOus.add($ouString.trimend(','))
-                }
-                else
-                {
-                    $null = $targetMachineOus.add($targetMachine.distinguishedname.Replace("CN=$($targetMachine.name),",""))
-                }
+                $targetMachineOUs += $targetMachine.DistinguishedName.Split(',')[1].split('=')[1]
             }
-            $targetMachineOus | Get-Unique | ForEach-Object {Get-ADOrganizationalUnit -Filter {DistinguishedName -eq $_}} | ForEach-Object {$null = $orgunits.add($_)}
+
+            $uniqueOUs = $targetMachineOus | Get-Unique 
+            
+            foreach ($ouName in $uniqueOUs)
+            {
+                $filter = [scriptblock]::Create("Name -eq `"$ouName`"")
+                $ouObject = Get-ADOrganizationalUnit -Filter $filter
+                $null = $orgUnits.add($ouObject)
+            }
 
             if ($Scope -eq "Full")
             {
@@ -202,7 +197,7 @@ function New-SystemData
         }
         else
         {
-            $targetMachines = (Get-ADComputer -filter * -SearchBase $ou.DistinguishedName).name
+            $targetMachines = (Get-ADComputer -filter * -SearchBase "$($ou.DistinguishedName)").name
             $ouFolder = "$SystemsPath\$($ou.name)"
         }
         $jobs = New-Object System.Collections.ArrayList
@@ -377,13 +372,13 @@ function New-SystemData
                                 if ($env:computername -eq $machine)
                                 {
                                     $iisInfo = Get-ItemProperty HKLM:\SOFTWARE\Microsoft\InetStp\
-                                    $iisVersion = [decimal]"$($iisInfo.MajorVersion).$($iisInfo.MinorVersion)"
+                                    $iisVersion = "$($iisInfo.MajorVersion).$($iisInfo.MinorVersion)"
                                 }
                                 else 
                                 {
                                     $iisVersion = Invoke-Command -ComputerName $machine -Scriptblock {
                                         $iisData = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\InetStp"
-                                        [decimal]$localIisVersion = "$($iisData.MajorVersion).$($iisData.MinorVersion)"
+                                        $localIisVersion = "$($iisData.MajorVersion).$($iisData.MinorVersion)"
                                         return $localiisVersion
                                     }
                                 }
@@ -397,14 +392,14 @@ function New-SystemData
                             {
                                 if ($env:computername -eq $machine)
                                 {
-                                    $iisInfo = Get-ItemProperty HKLM:\SOFTWARE\Microsoft\InetStp\
-                                    $iisVersion = [decimal]"$($iisInfo.MajorVersion).$($iisInfo.MinorVersion)"
+                                    $iisInfo = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\InetStp"
+                                    $iisVersion = "$($iisInfo.MajorVersion).$($iisInfo.MinorVersion)"
                                 }
                                 else 
                                 {
                                     $iisVersion = Invoke-Command -ComputerName $machine -Scriptblock {
                                         $iisData = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\InetStp"
-                                        [decimal]$localIisVersion = "$($iisData.MajorVersion).$($iisData.MinorVersion)"
+                                        $localIisVersion = "$($iisData.MajorVersion).$($iisData.MinorVersion)"
                                         return $localiisVersion
                                     }
                                 }
@@ -710,26 +705,35 @@ function New-SystemData
                                     if ($env:computername -eq $machine)
                                     {
                                         $iisInfo = Get-ItemProperty HKLM:\SOFTWARE\Microsoft\InetStp\
-                                        $iisVersion = [decimal]"$($iisInfo.MajorVersion).$($iisInfo.MinorVersion)"
+                                        $iisVersion = "$($iisInfo.MajorVersion).$($iisInfo.MinorVersion)"
+                                        
                                         try
                                         {
-                                            Import-Module WebAdministration
-                                            $webSites = (Get-Childitem "IIS:\Sites").name
-                                            $appPools = (Get-Childitem "IIS:\AppPools").name
+                                            Import-Module WebAdministration -WarningAction SilentlyContinue
+
+                                            if (Test-Path -Path "IIS:\Sites")
+                                            {
+                                                $webSites = (Get-Childitem "IIS:\Sites" -ErrorAction stop).name
+                                                $appPools = (Get-Childitem "IIS:\AppPools" -ErrorAction stop).name
+                                            }
+                                            else 
+                                            {
+                                                Import-Module IISAdministration -WarningAction SilentlyContinue
+                                                $webSites = (Get-IISSite).Name
+                                                $AppPools = (Get-IISAppPool).Name    
+                                            }
                                         }
                                         catch
                                         {
-                                            Import-Module IISAdministration
-                                            $webSites = (Get-IISSite).Name
-                                            $AppPools = (Get-IISAppPool).Name
+                                            Write-Warning "Unable to list Websites and AppPools for $machine"
                                         }
                                     }
                                     else 
                                     {
                                         $iisVersion = Invoke-Command -ComputerName $machine -Scriptblock {
                                             $iisData = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\InetStp"
-                                            [decimal]$localIisVersion = "$($iisData.MajorVersion).$($iisData.MinorVersion)"
-                                            return $localiisVersion
+                                            $localIisVersion = "$($iisData.MajorVersion).$($iisData.MinorVersion)"
+                                            return $localIisVersion
                                         }
                                         [array]$websites = Invoke-Command -Computername $machine -Scriptblock { 
                                             try
@@ -807,13 +811,13 @@ function New-SystemData
                                     if ($env:computername -eq $machine)
                                     {
                                         $iisInfo = Get-ItemProperty HKLM:\SOFTWARE\Microsoft\InetStp\
-                                        $iisVersion = [decimal]"$($iisInfo.MajorVersion).$($iisInfo.MinorVersion)"
+                                        $iisVersion = "$($iisInfo.MajorVersion).$($iisInfo.MinorVersion)"
                                     }
                                     else
                                     {
                                         $iisVersion = Invoke-Command -ComputerName $machine -Scriptblock {
                                             $iisData = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\InetStp"
-                                            [decimal]$localIisVersion = "$($iisData.MajorVersion).$($iisData.MinorVersion)"
+                                            $localIisVersion = "$($iisData.MajorVersion).$($iisData.MinorVersion)"
                                             return $localiisVersion
                                         }   
                                     }
@@ -850,7 +854,7 @@ function New-SystemData
                                             return $firefoxDirectory
                                         }
                                     }
-                                    catch 
+                                    catch
                                     {
                                         $installDirectory = "C:\Program Files\Mozilla Firefox"
                                     }
@@ -1034,7 +1038,9 @@ function New-SystemData
                 }
                 $null = $jobs.add($job.Id)
             }
+            
             Write-Output "`t`tJob creation for $($ou.name) System Data is complete. Waiting on $($jobs.count) jobs to finish processing."
+            
             if ($jobs.count -ge 1)
             {
                 do
@@ -1042,7 +1048,7 @@ function New-SystemData
                     $completedJobs  = (Get-Job -ID $jobs | Where-Object {$_.state -ne "Running"}).count
                     $runningjobs    = (Get-Job -ID $jobs | Where-Object {$_.state -eq "Running"}).count
                     Write-Output "`t`t$($ou.Name) System Data Status:`t$runningJobs Jobs Currently Processing`t$completedJobs/$($jobs.count) Jobs Completed"
-                    Start-Sleep -Seconds 30
+                    Start-Sleep -Seconds 15
                 }
                 while ((Get-Job -ID $jobs).State -contains "Running")
                 Write-Output "`t`t$($jobs.count) System Data jobs completed. Outputting Results."
@@ -1051,6 +1057,7 @@ function New-SystemData
             else
             {
                 Write-Output "`t`tNo Jobs Generated for $($ou.Name)"
+                Remove-Item $ouFolder -Force
             }
         }
     }

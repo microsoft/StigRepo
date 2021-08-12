@@ -1,4 +1,19 @@
-# StigRepo Version 1.3 ReleaseNotes
+# StigRepo Version 1.4 Release Notes
+
+## Overview
+
+StigRepo Version 1.4 includes bug fixes and feature improvements based on issues/feedback submitted to the [StigRepo GitHub Repository]("https://github.com/microsoft/StigRepo"). 
+
+## Change/Issue Summary
+[Issue #13]("https://github.com/microsoft/StigRepo/issues/13") New-SystemData localhost switch fails to generate system data properly
+[Issue #14]("https://github.com/microsoft/StigRepo/issues/14") New-SystemData ComputerName switch generated system data for all systems in the ComputerName's OU
+[Issue #18]("https://github.com/microsoft/StigRepo/issues/18") Incorporated file location check/prompt for Initialize StigRepo 
+[Issue #17]("https://github.com/microsoft/StigRepo/issues/17") Start-DscBuild causing PoSH to crash if no systemdata is present
+[Issue #19]("https://github.com/microsoft/StigRepo/issues/19") New-SystemData fails to generate config data for systems if they are in an OU/CN at the root of AD
+[Issue #24]("https://github.com/microsoft/StigRepo/issues/24") Reduced New-SystemData job status checks from 30 to 15 seconds
+[Issue #25]("https://github.com/microsoft/StigRepo/issues/25") IIS Minor Version not included in when running New-System data in PoSH 7
+
+# StigRepo Version 1.3 Release Notes
 
 ## Overview
 

@@ -26,5 +26,10 @@ Export-ModuleMember -Function @(
     'Sync-DscModules',
     'Update-StigRepo',
     'Get-ApplicableStigs',
-    'Import-AzDscConfigurations'
+    'Import-AzDscConfigurations',
+    'Register-AzAutomationNodes',
+    'Export-AzDscConfigurations',
+    'Remove-StigRepoData',
+    'Get-StigChecklist',
+    'Get-StigFiles'
 )

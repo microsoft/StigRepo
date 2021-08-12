@@ -1,61 +1,72 @@
-# What is the StigRepo Module?
+## What is the StigRepo Module?
 
-___
+The StigRepo module accelerates cloud readiness and system hardening through building a repository to automate and customize configurations that are compliant with Security Technical Implementation Guides (STIGs) owned and released by the Defense Information Systems Agency (DISA). StigRepo identifies the systems in your Active Directory and/or Azure environment, identifies which software needs to be secured according to STIG requirements/recommendations, builds a customizable infrastructure as code (IaC) repository that leverages PowerSTIG### to automate enforcement and/or monitoring of STIG compliance ensuring your systems remain secured and even generating documentation to report compliance through STIG Checklists.
 
-The Stig-Repo module leverages PowerSTIG and Desired State Configuration to build and drive the STIG Compliance Automation Repository (SCAR) - an automated Infrastructure as Code framework for Security Technical Implementation Guide (STIG) Compliance.
+## Get Started with STIG Repo
 
-SCAR accelerates Azure readiness and ATO/CCRI processes through automated STIG compliance and digital transformation by establishing an infrastructure as code platform that organizations can customize build on top of to quickly establish and deploy Azure baselines.
+### On-Prem Active Directory Environments
 
-## Get Started with StigRepo
+**Prerequisites**
+- Must be executed from an internet-connected system to install module dependencies or required modules must be installed manually 
+- For On-Prem Active Directory environments, StigRepo must be executed from a system with the Active Directory/RSAT Tools installed.
+- Powershell Version 5.1 or greater
 
-___
+Execute the commands below to install the StigRepo Module, build the STIG repository, and generate STIG Checklists for On-Prem Active Directory environments:
+1. Install-Module StigRepo
+2. Initialize-StigRepo: # Builds the STIG Compliance Automation Repository and installs dependencies on the local system
+3. New-SystemData:      # Scans the Active Directory Environment for targetted systems, determines applicable STIGs, and generates DSC configuration data
+4. Start-DscBuild:      # Generates DSC Configuration scripts and MOF files for all DSC Nodes.
+5. Sync-DscModules:     # Syncs DSC module dependencies across all DSC Nodes
+6. Set-WinRMConfig:     # Expands MaxEnvelopSize on all DSC nodes
+7. Get-StigChecklists:  # Generates STIG Checklists for all applicable STIGs for each DSC Node
 
-### Active Directory Infrastructure
+Additional Commands:
+- Start-DscConfiguration -Path "$StigRepoLocation\Artifacts\MOFs" # Enforces STIG configurations on all systems with generated MOF files. 
+- Update-StigRepo # Updates dependent modules to and StigRepo to the latest versions available on the PoSH marketplace and updates STIG Data Files
 
-Execute the seven Powershell commands below to install the StigRepo module, build your Stig Repository, create PowerSTIG configurations, and generate STIG Checklists for Systems joined to an Active Directory Domain.
+### Azure Environments 
 
-Prerequisites - WinRM access into the target systems, ActiveDirectory module must be installed, and target systems must be running Powershell version 5.1 or greater.
+**Prerequisites**
+- Powershell session must be connected to an Azure Subscription (Connect-AzAccount) and 
+- Azure Automation account must already exist within the subscription to leverage the StigRepo module
 
-1. Install-Module StigRepo     # Installs the StigRepo module from the Powershell Gallery.
-2. Initialize-StigRepo         # Builds the STIG Compliance Automation Repository and installs dependencies on the local system
-3. New-SystemData              # Scans the Active Directory Environment for targetted systems, determines applicable STIGs, and generates DSC configuration data
-4. Start-DscBuild              # Generates DSC Configuration scripts and MOF files for all DSC Nodes
-5. Sync-DscModules             # Syncs DSC module dependencies across all DSC Nodes
-6. Set-WinRMConfig             # Expands MaxEnvelopSize on all DSC nodes
-7. Get-StigChecklists          # Generates STIG Checklists for all applicable STIGs for each DSC Node
+Execute the commands below to install the StigRepo Module, build your Stig Repository, and prepare an Azure Automation account to enforce/report STIG compliance for Azure Infrastructure.
+1. Install-Module StigRepo          # Installs the StigRepo module from the Powershell Gallery.
+2. Initialize-StigRepo              # Builds the STIG Compliance Automation Repository and installs dependencies on the local system
+3. New-AzSystemData                 # Builds System Data for Azure VMs
+4. Publish-AzAutomationModules      # Uploads Modules to an Azure Automation Account
+5. Export-AzDscConfigurations       # Generates DSC Configuration Scripts for each SystemData file that are constucted for Azure Automation in the "Artifacts\AzDscConfigs" folder
+6. Import-AzDscConfigurations       # Imports generated STIG Configurations to Azure Automation Account
+7. Register-AzAutomationNodes       # Registers Systems with System Data to an Azure Automation Account
 
-### Azure Infrastructure
+Additional Commands:
+- Start-DscConfiguration -Path "$StigRepoLocation\Artifacts\MOFs" # Enforces STIG configurations on all systems with generated MOF files. 
+- Update-StigRepo # Updates dependent modules to and StigRepo to the latest versions available on the PoSH marketplace and updates STIG Data Files
 
-Execute the seven Powershell commands below to install the StigRepo Module, build your Stig Repository, and prepare an Azure Automation account to enforce/report STIG compliance for Azure Infrastructure.
+## STIG Repository Structure
 
-Prerequisites - Powershell session must be connected to an Azure Subscription (Connect-AzAccount) and an Azure Automation account must already exist within the subscription.
-
-1. Install-Module StigRepo # Installs the StigRepo module from the Powershell Gallery.
-2. Initialize-StigRepo # Builds the STIG Compliance Automation Repository and installs dependencies on the local system
-3. New-AzSystemData -ResourceGroupName "VM-RG-Name" # Builds System Data for Azure VMs
-4. Publish-AzAutomationModules -ResourceGroupName "AutomationAcct-RG" -AutomationAccountName "My-AutomationAcct" # Uploads Modules located in "Resources\Modules" folder to an Azure Automation Account
-5. Export-AzDscConfigurations # Generates DSC Configuration Scripts for each SystemData file that are constucted for Azure Automation in the "Artifacts\AzDscConfigs" folder
-6. Import-AzDscConfigurations -ResourceGroupName "AutomationAcct-RG" -AutomationAccountName "My-AutomationAcct" # Imports generated STIG Configurations to Azure Automation Account
-7. Register-AzAutomationNodes -ResourceGroupName "AutomationAcct-RG" -AutomationAccountName "My-AutomationAcct" # Registers Systems with System Data to an Azure Automation Account
-
-## Release Cycle
-
-___
-
-StigRepo minor versions will be released each quarter with possible patch changes released in-between minor releases if/as needed. Submit bugs/feature requests to have fixes/recommended changes implemented into the StigRepo module.
-
-## The STIG Repository Structure
-
-The StigRepo module organizes Systems, Configurations, Artifacts, and Resources (SCAR) into the folder structure below:
-
+StigRepo organizes the repository to deploy and document STIGs using the folders listed below:
 1. Systems: Folders for each identified Organizational Unit in Active Directory and a Powershell Data file for each identified system.
 2. Configurations: Dynamic PowerSTIG Configurations for that are customized by paremeters provided within system data files.
-3. Artifacts: Consumable items produced by SCAR. SCAR produces DSCConfigs, MOFS, and STIG Checklists out of the box.
-4. Resources: Dependendencies leveraged by SCAR to generate SystemData and Artifacts. SCAR has Modules, Stig Data, and Wiki resources out of the box.
+3. Artifacts: Consumable items produced by StigRepo. StigRepo produces DSCConfigs, MOFS, and STIG Checklists out of the box.
+4. Resources: Dependendencies leveraged by StigRepo to generate SystemData and Artifacts. StigRepo has Modules, Stig Data, and Wiki resources out of the box.
+
+## Code of Conduct
+
+This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
+For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/)
+or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions
+or comments.
+
+## Trademarks
+
+This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft 
+trademarks or logos is subject to and must follow 
+[Microsoft's Trademark & Brand Guidelines](https://www.microsoft.com/en-us/legal/intellectualproperty/trademarks/usage/general).
+Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft sponsorship.
+Any use of third-party trademarks or logos are subject to those third-party's policies.
 
 ## Contributing
-
-___
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
 Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
@@ -69,9 +80,6 @@ This project has adopted the [Microsoft Open Source Code of Conduct](https://ope
 For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
 contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
 
-To request modifications or submit bug reports for the StigRepo Module, submit an issue through the Github page.
-To contribute - submit an issue, create a branch named GithubUser_IssueNumber, and submit a pull request to have your changes merged.
-
 ### Contributor's list
 
 * Jake Dean [@JakeDean3631](https://github.com/JakeDean3631)
@@ -81,28 +89,7 @@ To contribute - submit an issue, create a branch named GithubUser_IssueNumber, a
 
 ## Additional Resources
 
-___
-
 1. [PowerShell Gallery]("https://www.powershellgallery.com/packages/StigRepo/")
 2. [GitHub]("https://github.com/microsoft/StigRepo")
 3. [PowerSTIG](https://github.com/microsoft/PowerStig)
 4. [Stig Coverage Summary](https://github.com/Microsoft/PowerStig/wiki/StigCoverageSummary)
-
-## Code of Conduct
-
-___
-
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
-For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/)
-or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions
-or comments.
-
-## Trademarks
-
-___
-
-This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft 
-trademarks or logos is subject to and must follow 
-[Microsoft's Trademark & Brand Guidelines](https://www.microsoft.com/en-us/legal/intellectualproperty/trademarks/usage/general).
-Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft sponsorship.
-Any use of third-party trademarks or logos are subject to those third-party's policies.
