@@ -1,6 +1,6 @@
 ## What is the StigRepo Module?
 
-The StigRepo module accelerates cloud readiness and system hardening through building a repository to automate and customize configurations that are compliant with Security Technical Implementation Guides (STIGs) owned and released by the Defense Information Systems Agency (DISA). StigRepo identifies the systems in your Active Directory and/or Azure environment, identifies which software needs to be secured according to STIG requirements/recommendations, builds a customizable infrastructure as code (IaC) repository that leverages PowerSTIG### to automate enforcement and/or monitoring of STIG compliance ensuring your systems remain secured and even generating documentation to report compliance through STIG Checklists.
+The StigRepo module accelerates cloud readiness and system hardening through building a repository to automate and customize configurations that are compliant with Security Technical Implementation Guides (STIGs) owned and released by the Defense Information Systems Agency (DISA). StigRepo identifies the systems in your Active Directory and/or Azure environment, identifies which software needs to be secured according to STIG requirements/recommendations, builds a customizable infrastructure as code (IaC) repository that leverages [PowerSTIG](https://github.com/microsoft/PowerStig) to automate enforcement and/or monitoring of STIG compliance ensuring your systems remain secured and even generating documentation to report compliance through STIG Checklists.
 
 ## Get Started with STIG Repo
 
