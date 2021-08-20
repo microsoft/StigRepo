@@ -1,6 +1,27 @@
-## What is the StigRepo Module?
+## Overview
 
-The StigRepo module accelerates cloud readiness and system hardening through building a repository to automate and customize configurations that are compliant with Security Technical Implementation Guides (STIGs) owned and released by the Defense Information Systems Agency (DISA). StigRepo identifies the systems in your Active Directory and/or Azure environment, identifies which software needs to be secured according to STIG requirements/recommendations, builds a customizable infrastructure as code (IaC) repository that leverages [PowerSTIG](https://github.com/microsoft/PowerStig) to automate enforcement and/or monitoring of STIG compliance ensuring your systems remain secured and even generating documentation to report compliance through STIG Checklists.
+The [StigRepo module](https://www.powershellgallery.com/packages/StigRepo/1.4) accelerates cloud readiness and system hardening through building a repository to automate and customize configurations that are compliant with [Security Technical Implementation Guides (STIGs)](https://public.cyber.mil/stigs/) owned and released by the [Defense Information Systems Agency (DISA)](https://www.disa.mil/About). StigRepo identifies the systems in your Active Directory and/or Azure environment, identifies which software needs to be secured according to STIG requirements/recommendations, builds a customizable Infrastructure as Code (IaC) repository that leverages [PowerSTIG](https://github.com/microsoft/PowerStig) to automate enforcement, auditing, and documentation of STIG requirements through [Desired State Configuration](https://docs.microsoft.com/en-us/powershell/scripting/dsc/overview/overview?view=powershell-7.1). The STIG Repository can be imported into and driven through [Azure DevOps](https://azure.microsoft.com/en-us/services/devops/) or [Github Enterprise](https://github.com/enterprise) for continuous STIG enforcement, auditing, monitoring, and compliance documentation. 
+
+The StigRepo Module empowers system integrators to:
+- Quickly establish DevOps repositories customized for existing Active Directory environments
+- Enforce and/or audit STIG Compliance for existing Active Directory/Azure environments
+- Customize STIG configurations and easily implement/document exceptions to STIG requirements
+- Develop and integrate custom DSC configurations to manage desired state at enterprise scale
+- Generate documentation for Authority to Operate (ATO) renewals and Cyber Security Inspections
+
+## Problem Statement
+
+United States Government organizations must adhere to STIG requirements established by the Defense Information Systems Agency (DISA). Periodic inspections for STIG compliance are conducted in which government organizations must enforce, audit, and provide documentation that shows that their environment(s) are secure up to DISA’s standards. This is a massive undertaking that requires a large amount of manpower to complete, especially for large enterprise environments, as the time it takes to audit, enforce, and document STIG compliance on a single Windows Server can take 4-8 hours depending on the complexity of the system. This means that in an environment containing 100 servers, 400-800 man-hours required just to meet STIG requirements. With the StigRepo module, that time is reduced to a matter of ~10 hours. STIG compliance can be enforced, maintained, and documented across the entire environment on-demand, ensuring the organization is in an always-ready state for cyber inspections and that their systems are hardened to prevent cyber-attacks.
+
+# Solution
+
+The StigRepo module scans an existing Active Directory/Azure environment and builds a repository for managing, enforcing, and documenting STIG compliance. System data is customized to each system based on Operating System, software, and installed roles/features and can be further customized by customers that require exceptions to STIG requirements and/or custom configurations. The StigRepo module is a repeatable solution that can be universally implemented to quickly harden system security and establish STIG compliance. The repository that is built by the StigRepo module can easily be placed into an Azure DevOps or Github enterprise project to provide continuous enforcement, auditing, and documentation of STIG Compliance across the environment.
+
+# Benefits
+
+Reduce risk – Systems are hardened according to DISA STIG required configuration standards
+Optimize cost + resources – StigRepo simplifies the process of enforcing, auditing, and documenting STIG compliance and provides a quick and easy solution for establishing a DevOps repository. 
+Increase efficiency – Even within large enterprise environments, StigRepo can build the repository, enforce STIG compliance, and generate documentation for all systems within a matter of hours. 
 
 ## Get Started with STIG Repo
 
@@ -12,13 +33,13 @@ The StigRepo module accelerates cloud readiness and system hardening through bui
 - Powershell Version 5.1 or greater
 
 Execute the commands below to install the StigRepo Module, build the STIG repository, and generate STIG Checklists for On-Prem Active Directory environments:
-1. Install-Module StigRepo
-2. Initialize-StigRepo: # Builds the STIG Compliance Automation Repository and installs dependencies on the local system
-3. New-SystemData:      # Scans the Active Directory Environment for targetted systems, determines applicable STIGs, and generates DSC configuration data
-4. Start-DscBuild:      # Generates DSC Configuration scripts and MOF files for all DSC Nodes.
-5. Sync-DscModules:     # Syncs DSC module dependencies across all DSC Nodes
-6. Set-WinRMConfig:     # Expands MaxEnvelopSize on all DSC nodes
-7. Get-StigChecklists:  # Generates STIG Checklists for all applicable STIGs for each DSC Node
+| Install-Module StigRepo | Installs the StigRepo module from the Powershell Gallery |
+| Initialize-StigRepo     | Builds the STIG Compliance Automation Repository and installs dependencies on the local system |
+| New-SystemData          | Scans the Active Directory Environment for targetted systems, determines applicable STIGs, and generates DSC configuration data |
+| Start-DscBuild          | Generates DSC Configuration scripts and MOF files for all DSC Nodes |
+| Sync-DscModules         | Syncs DSC module dependencies across all DSC Nodes |
+| Set-WinRMConfig         | Expands MaxEnvelopSize on all DSC nodes |
+| Get-StigChecklists      | Generates STIG Checklists for all applicable STIGs for each DSC Node |
 
 Additional Commands:
 - Start-DscConfiguration -Path "$StigRepoLocation\Artifacts\MOFs" # Enforces STIG configurations on all systems with generated MOF files. 
