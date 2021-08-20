@@ -33,6 +33,8 @@ Increase efficiency – Even within large enterprise environments, StigRepo can 
 - Powershell Version 5.1 or greater
 
 Execute the commands below to install the StigRepo Module, build the STIG repository, and generate STIG Checklists for On-Prem Active Directory environments:
+|Cmdlet                   | Description |
+|-------------------------|-------------|
 | Install-Module StigRepo | Installs the StigRepo module from the Powershell Gallery |
 | Initialize-StigRepo     | Builds the STIG Compliance Automation Repository and installs dependencies on the local system |
 | New-SystemData          | Scans the Active Directory Environment for targetted systems, determines applicable STIGs, and generates DSC configuration data |
