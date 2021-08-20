@@ -19,9 +19,9 @@ The StigRepo module scans an existing Active Directory/Azure environment and bui
 
 ## Benefits
 
-Reduce risk – Systems are hardened according to DISA STIG required configuration standards
-Optimize cost + resources – StigRepo simplifies the process of enforcing, auditing, and documenting STIG compliance and provides a quick and easy solution for establishing a DevOps repository. 
-Increase efficiency – Even within large enterprise environments, StigRepo can build the repository, enforce STIG compliance, and generate documentation for all systems within a matter of hours. 
+- Reduce risk – Systems are hardened according to DISA STIG required configuration standards
+- Optimize cost + resources – StigRepo simplifies the process of enforcing, auditing, and documenting STIG compliance and provides a quick and easy solution for establishing a DevOps repository. 
+- Increase efficiency – Even within large enterprise environments, StigRepo can build the repository, enforce STIG compliance, and generate documentation for all systems within a matter of hours. 
 
 ## Get Started with STIG Repo
 
