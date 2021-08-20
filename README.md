@@ -54,13 +54,15 @@ Additional Commands:
 - Azure Automation account must already exist within the subscription to leverage the StigRepo module
 
 Execute the commands below to install the StigRepo Module, build your Stig Repository, and prepare an Azure Automation account to enforce/report STIG compliance for Azure Infrastructure.
-1. Install-Module StigRepo          # Installs the StigRepo module from the Powershell Gallery.
-2. Initialize-StigRepo              # Builds the STIG Compliance Automation Repository and installs dependencies on the local system
-3. New-AzSystemData                 # Builds System Data for Azure VMs
-4. Publish-AzAutomationModules      # Uploads Modules to an Azure Automation Account
-5. Export-AzDscConfigurations       # Generates DSC Configuration Scripts for each SystemData file that are constucted for Azure Automation in the "Artifacts\AzDscConfigs" folder
-6. Import-AzDscConfigurations       # Imports generated STIG Configurations to Azure Automation Account
-7. Register-AzAutomationNodes       # Registers Systems with System Data to an Azure Automation Account
+|Cmdlet                            | Description |
+|----------------------------------|-------------|
+| Install-Module StigRepo          | Installs the StigRepo module from the Powershell Gallery.
+| Initialize-StigRepo              | Builds the STIG Compliance Automation Repository and installs dependencies on the local system
+| New-AzSystemData                 | Builds System Data for Azure VMs
+| Publish-AzAutomationModules      | Uploads Modules to an Azure Automation Account
+| Export-AzDscConfigurations       | Generates DSC Configuration Scripts for each SystemData file that are constucted for Azure Automation in the "Artifacts\AzDscConfigs" folder
+| Import-AzDscConfigurations       | Imports generated STIG Configurations to Azure Automation Account
+| Register-AzAutomationNodes       | Registers Systems with System Data to an Azure Automation Account
 
 Additional Commands:
 - Start-DscConfiguration -Path "$StigRepoLocation\Artifacts\MOFs" # Enforces STIG configurations on all systems with generated MOF files. 
