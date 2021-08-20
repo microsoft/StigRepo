@@ -43,14 +43,10 @@ Execute the commands below to install the StigRepo Module, build the STIG reposi
 | Set-WinRMConfig         | Expands MaxEnvelopSize on all DSC nodes |
 | Get-StigChecklists      | Generates STIG Checklists for all applicable STIGs for each DSC Node |
 
-Additional Commands:
-- Start-DscConfiguration -Path "$StigRepoLocation\Artifacts\MOFs" # Enforces STIG configurations on all systems with generated MOF files. 
-- Update-StigRepo # Updates dependent modules to and StigRepo to the latest versions available on the PoSH marketplace and updates STIG Data Files
-
 ### Azure Environments 
 
 **Prerequisites**
-- Powershell session must be connected to an Azure Subscription (Connect-AzAccount) and 
+- Powershell session must be connected to an Azure Subscription (Connect-AzAccount)
 - Azure Automation account must already exist within the subscription to leverage the StigRepo module
 
 Execute the commands below to install the StigRepo Module, build your Stig Repository, and prepare an Azure Automation account to enforce/report STIG compliance for Azure Infrastructure.
@@ -63,10 +59,6 @@ Execute the commands below to install the StigRepo Module, build your Stig Repos
 | Export-AzDscConfigurations       | Generates DSC Configuration Scripts for each SystemData file that are constucted for Azure Automation in the "Artifacts\AzDscConfigs" folder
 | Import-AzDscConfigurations       | Imports generated STIG Configurations to Azure Automation Account
 | Register-AzAutomationNodes       | Registers Systems with System Data to an Azure Automation Account
-
-Additional Commands:
-- Start-DscConfiguration -Path "$StigRepoLocation\Artifacts\MOFs" # Enforces STIG configurations on all systems with generated MOF files. 
-- Update-StigRepo # Updates dependent modules to and StigRepo to the latest versions available on the PoSH marketplace and updates STIG Data Files
 
 ## STIG Repository Structure
 
