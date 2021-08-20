@@ -63,10 +63,10 @@ Execute the commands below to install the StigRepo Module, build your Stig Repos
 ## STIG Repository Structure
 
 StigRepo organizes the repository to deploy and document STIGs using the folders listed below:
-1. Systems: Folders for each identified Organizational Unit in Active Directory and a Powershell Data file for each identified system.
-2. Configurations: Dynamic PowerSTIG Configurations for that are customized by paremeters provided within system data files.
-3. Artifacts: Consumable items produced by StigRepo. StigRepo produces DSCConfigs, MOFS, and STIG Checklists out of the box.
-4. Resources: Dependendencies leveraged by StigRepo to generate SystemData and Artifacts. StigRepo has Modules, Stig Data, and Wiki resources out of the box.
+- Systems: Folders for each identified Organizational Unit in Active Directory and a Powershell Data file for each identified system.
+- Configurations: Dynamic PowerSTIG Configurations for that are customized by paremeters provided within system data files.
+- Artifacts: Consumable items produced by StigRepo. StigRepo produces DSCConfigs, MOFS, and STIG Checklists out of the box.
+- Resources: Dependendencies leveraged by StigRepo to generate SystemData and Artifacts. StigRepo has Modules, Stig Data, and Wiki resources out of the box.
 
 ## Code of Conduct
 
@@ -106,8 +106,8 @@ contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additio
 
 ## Additional Resources
 
-1. [PowerShell Gallery]("https://www.powershellgallery.com/packages/StigRepo/")
-2. [GitHub]("https://github.com/microsoft/StigRepo")
+1. [PowerShell Gallery](https://www.powershellgallery.com/packages/StigRepo/)
+2. [GitHub](https://github.com/microsoft/StigRepo)
 3. [PowerSTIG](https://github.com/microsoft/PowerStig)
 4. [Stig Coverage Summary](https://github.com/Microsoft/PowerStig/wiki/StigCoverageSummary)
 5. [DISA Website](https://www.disa.mil/)
