@@ -13,11 +13,11 @@ The StigRepo Module empowers system integrators to:
 
 United States Government organizations must adhere to STIG requirements established by the Defense Information Systems Agency (DISA). Periodic inspections for STIG compliance are conducted in which government organizations must enforce, audit, and provide documentation that shows that their environment(s) are secure up to DISA’s standards. This is a massive undertaking that requires a large amount of manpower to complete, especially for large enterprise environments, as the time it takes to audit, enforce, and document STIG compliance on a single Windows Server can take 4-8 hours depending on the complexity of the system. This means that in an environment containing 100 servers, 400-800 man-hours required just to meet STIG requirements. With the StigRepo module, that time is reduced to a matter of ~10 hours. STIG compliance can be enforced, maintained, and documented across the entire environment on-demand, ensuring the organization is in an always-ready state for cyber inspections and that their systems are hardened to prevent cyber-attacks.
 
-# Solution
+## Solution
 
 The StigRepo module scans an existing Active Directory/Azure environment and builds a repository for managing, enforcing, and documenting STIG compliance. System data is customized to each system based on Operating System, software, and installed roles/features and can be further customized by customers that require exceptions to STIG requirements and/or custom configurations. The StigRepo module is a repeatable solution that can be universally implemented to quickly harden system security and establish STIG compliance. The repository that is built by the StigRepo module can easily be placed into an Azure DevOps or Github enterprise project to provide continuous enforcement, auditing, and documentation of STIG Compliance across the environment.
 
-# Benefits
+## Benefits
 
 Reduce risk – Systems are hardened according to DISA STIG required configuration standards
 Optimize cost + resources – StigRepo simplifies the process of enforcing, auditing, and documenting STIG compliance and provides a quick and easy solution for establishing a DevOps repository. 
@@ -105,7 +105,7 @@ This project has adopted the [Microsoft Open Source Code of Conduct](https://ope
 For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
 contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
 
-### Contributor's list
+## Contributor's list
 
 * Jake Dean [@JakeDean3631](https://github.com/JakeDean3631)
 * Ken Johnson   [@kenjohnson03](https://github.com/kenjohnson03)
@@ -118,3 +118,5 @@ contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additio
 2. [GitHub]("https://github.com/microsoft/StigRepo")
 3. [PowerSTIG](https://github.com/microsoft/PowerStig)
 4. [Stig Coverage Summary](https://github.com/Microsoft/PowerStig/wiki/StigCoverageSummary)
+5. [DISA Website](https://www.disa.mil/)
+6. [STIG Website](https://public.cyber.mil/stigs/)
