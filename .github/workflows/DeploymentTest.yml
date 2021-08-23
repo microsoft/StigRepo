@@ -25,15 +25,14 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
 
-      - name: StigRepo Test Build
-        uses: Amadevus/pwsh-script@v2.0.1
-        with:
-          script: |
-            Set-Location "C:\SCAR"
-            Import-Module StigRepo -Force
-            Initialize-StigRepo -RootPath "C:\SCAR"
-            New-SystemData -Scope 'Full'
-            Sync-DscModules
-            Set-WinRMConfig
-            Start-DscBuild
-            Get-StigChecklists
+      - name: Run a one-line script
+        shell: powershell
+        run: |
+          Set-Location "C:\SCAR"
+          Import-Module StigRepo -Force
+          Initialize-StigRepo -RootPath "C:\SCAR"
+          New-SystemData -Scope 'Full'
+          Sync-DscModules
+          Set-WinRMConfig
+          Start-DscBuild
+          Get-StigChecklists      
