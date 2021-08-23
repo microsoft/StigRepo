@@ -35,7 +35,7 @@ jobs:
           }
           $ModulePath = (Get-Module -Name StigRepo).Path
           $ModuleRoot = Split-Path -Path $ModulePath -Parent
-          $SourceFiles = Get-ChildItem -Path "$GITHUB_WORKSPACE\source"
+          $SourceFiles = Get-ChildItem -Path "$env:GITHUB_WORKSPACE\source"
           Remove-Module StigRepo -Force
           Get-Childitem $ModuleRoot | Remove-Item -Force -Confirm:$False -Recurse
           foreach ($File in $SourceFiles)
