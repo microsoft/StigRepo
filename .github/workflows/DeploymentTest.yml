@@ -28,7 +28,8 @@ jobs:
       - name: Update Local StigRepo Module
         shell: powershell
         run: |
-          Import-Module StigRepo -Force
+          try {Import-Module StigRepo -Force}
+          catch {Install-ModuleStigRepo -Force}
           $ModulePath = (Get-Module -Name StigRepo).Path
           $ModuleRoot = Split-Path -Path $ModulePath -Parent
           $SourceFiles = Get-ChildItem -Path "$GITHUB_WORKSPACE\source"
