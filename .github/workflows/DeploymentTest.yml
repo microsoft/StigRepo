@@ -28,9 +28,11 @@ jobs:
       - name: Update Local StigRepo Module
         shell: powershell
         run: |
+          Import-Module StigRepo -Force
           $ModulePath = (Get-Module -Name StigRepo).Path
           $ModuleRoot = Split-Path -Path $ModulePath -Parent
           $SourceFiles = Get-ChildItem -Path ".\Source"
+          Remove-Module StigRepo -Force
           Get-Childitem $ModuleRoot | Remove-Item -Force -Confirm:$False -Recurse
           $SourceFiles | Copy-Item -Path $_.FullName -Destination $ModuleRoot
           Import-Module StigRepo -Force
