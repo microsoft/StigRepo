@@ -29,7 +29,10 @@ jobs:
         shell: powershell
         run: |
           try {Import-Module StigRepo -Force}
-          catch {Install-Module StigRepo -Force}
+          catch {
+            Install-Module StigRepo -Force
+            Import-Module StigRepo -Force
+          }
           $ModulePath = (Get-Module -Name StigRepo).Path
           $ModuleRoot = Split-Path -Path $ModulePath -Parent
           $SourceFiles = Get-ChildItem -Path "$GITHUB_WORKSPACE\source"
