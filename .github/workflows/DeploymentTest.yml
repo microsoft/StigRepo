@@ -34,7 +34,10 @@ jobs:
           $SourceFiles = Get-ChildItem -Path ".\Source"
           Remove-Module StigRepo -Force
           Get-Childitem $ModuleRoot | Remove-Item -Force -Confirm:$False -Recurse
-          $SourceFiles | Copy-Item -Path $_.FullName -Destination $ModuleRoot
+          foreach ($File in $SourceFiles)
+          {
+            Copy-Item -Path $File.FullName -Destination $ModuleRoot
+          }
           Import-Module StigRepo -Force
 
       - name: StigRepo Build
