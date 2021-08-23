@@ -25,13 +25,23 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
 
-      - name: Run a one-line script
+      - name: Update Local StigRepo Module
+        shell: powershell
+        run: |
+          $ModulePath = (Get-Module -Name StigRepo).Path
+          $ModuleRoot = Split-Path -Path $ModulePath -Parent
+          $SourceFiles = Get-ChildItem -Path ".\Source"
+          Get-Childitem $ModuleRoot | Remove-Item -Force -Confirm:$False -Recurse
+          $SourceFiles | Copy-Item -Path $_.FullName -Destination $ModuleRoot
+          Import-Module StigRepo -Force
+
+      - name: StigRepo Build
         shell: powershell
         run: |
           Set-Location "C:\SCAR"
           Import-Module StigRepo -Force
           Initialize-StigRepo -RootPath "C:\SCAR"
-          New-SystemData -Scope 'Full'
+          New-SystemData -Scope 'Full' -ErrorAction Continue
           Sync-DscModules
           Set-WinRMConfig
           Start-DscBuild
