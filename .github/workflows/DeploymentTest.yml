@@ -25,12 +25,8 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
 
-      # Runs a single command using the runners shell
-      - name: Azure PowerShell Action
-        uses: Azure/powershell@v1
+      - name: StigRepo Test Build
+        uses: Amadevus/pwsh-script@v2.0.1
         with:
-          # Specify the Az PowerShell script here.
-          inlineScript: |
+          script: |
             Import-Module StigRepo
-          # Azure PS version to be used to execute the script, example: 1.8.0, 2.8.0, 3.4.0. To use the latest version, specify "latest".
-          azPSVersion: latest
