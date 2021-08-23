@@ -30,3 +30,10 @@ jobs:
         with:
           script: |
             Import-Module StigRepo
+            Initialize-StigRepo -RootPath "C:\SCAR"
+            Set-Location "C:\SCAR"
+            New-SystemData -Scope 'Full'
+            Sync-DscModules
+            Set-WinRMConfig
+            Start-DscBuild
+            Get-StigChecklists
