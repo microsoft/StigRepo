@@ -29,9 +29,9 @@ jobs:
         uses: Amadevus/pwsh-script@v2.0.1
         with:
           script: |
-            Import-Module StigRepo
-            Initialize-StigRepo -RootPath "C:\SCAR"
             Set-Location "C:\SCAR"
+            Import-Module StigRepo -Force
+            Initialize-StigRepo -RootPath "C:\SCAR"
             New-SystemData -Scope 'Full'
             Sync-DscModules
             Set-WinRMConfig
