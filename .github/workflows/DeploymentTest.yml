@@ -28,13 +28,20 @@ jobs:
       - name: Update Module Source Files with Current Branch
         shell: powershell
         run: |
-          try   {Import-Module StigRepo -Force}
-          catch {Install-Module StigRepo -Force}
-          Import-Module StigRepo -Force
+          try
+          {
+            Import-Module StigRepo -Force
+          }
+          catch 
+          {
+            Install-Module StigRepo -Force
+            Import-Module StigRepo -Force
+          }
+
           $ModulePath = (Get-Module -Name StigRepo).Path
           $ModuleRoot = Split-Path -Path $ModulePath -Parent
           $localSourceFiles = Get-Childitem "$moduleRoot\Module\*.ps1"
-          $newSourceFiles = Get-ChildItem -Path "$env:GITHUB_WORKSPACE\source\module\*.ps1"
+          $newSourceFiles = Get-ChildItem -Path "${env:GITHUB_WORKSPACE}\source\module\*.ps1"
           Remove-Module StigRepo -Force
 
           foreach ($file in $localSourceFiles)
