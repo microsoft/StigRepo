@@ -60,11 +60,13 @@ jobs:
           Set-Location "C:\SCAR"
           Import-Module StigRepo -Force
           Initialize-StigRepo -RootPath "C:\SCAR"
-          New-SystemData -Scope 'Full' -ErrorAction Continue
-          Sync-DscModules
+          Remove-Item C:\SCAR\Resources\Modules\StigRepo -Force
+          Copy-Item -Path "C:\Program Files\WindowsPowerShell\Modules\StigRepo" -Destination "C:\SCAR\Resources\Modules" -Force
+          New-SystemData -Scope 'Full'
+          Sync-DscModules -Force
           Set-WinRMConfig
           Start-DscBuild
-          Get-StigChecklists      
+          Get-StigChecklists
 
       - name: Step 3 - Use the Upload Artifact GitHub Action
         uses: actions/upload-artifact@v2
