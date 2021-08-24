@@ -31,5 +31,8 @@ Export-ModuleMember -Function @(
     'Export-AzDscConfigurations',
     'Remove-StigRepoData',
     'Get-StigChecklist',
-    'Get-StigFiles'
+    'Get-StigFiles',
+    'Get-CombinedConfigs',
+    'Export-DynamicConfigs',
+    'Export-Mofs'
 )
