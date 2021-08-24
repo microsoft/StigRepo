@@ -25,22 +25,23 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
 
-      - name: Update Local StigRepo Module
+      - name: Update Module Source Files with Current Branch
         shell: powershell
         run: |
-          try {Import-Module StigRepo -Force}
-          catch {
-            Install-Module StigRepo -Force
-            Import-Module StigRepo -Force
-          }
+          try   {Import-Module StigRepo -Force}
+          catch {Install-Module StigRepo -Force}
+          Import-Module StigRepo -Force
           $ModulePath = (Get-Module -Name StigRepo).Path
           $ModuleRoot = Split-Path -Path $ModulePath -Parent
-          $SourceFiles = Get-ChildItem -Path "$env:GITHUB_WORKSPACE\source"
+          $localSourceFiles = Get-Childitem "$moduleRoot\Module\*.ps1"
+          $newSourceFiles = Get-ChildItem -Path "$env:GITHUB_WORKSPACE\source\module\*.ps1"
           Remove-Module StigRepo -Force
-          Get-Childitem $ModuleRoot | Remove-Item -Force -Confirm:$False -Recurse
-          foreach ($File in $SourceFiles)
+
+          foreach ($file in $localSourceFiles)
           {
-            Copy-Item -Path $File.FullName -Destination $ModuleRoot
+            $newSourceFile = $newSourceFile | Where {$_.name -eq $file.Name}
+            $newContent = Get-Content $newSourceFile -encoding utf8
+            Set-Content -Path $File.Fullname -Value $newContent -Force
           }
           Import-Module StigRepo -Force
 
