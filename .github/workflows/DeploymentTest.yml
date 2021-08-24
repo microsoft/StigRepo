@@ -55,6 +55,8 @@ jobs:
       - name: StigRepo Build
         shell: powershell
         run: |
+          Remove-Item -Path C:\SCAR -Recurse -Force -Confirm:$False
+          New-Item -ItemType Directory -Path C:\SCAR
           Set-Location "C:\SCAR"
           Import-Module StigRepo -Force
           Initialize-StigRepo -RootPath "C:\SCAR"
