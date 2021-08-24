@@ -40,8 +40,8 @@ jobs:
           foreach ($file in $localSourceFiles)
           {
             $newSourceFile = $newSourceFile | Where {$_.name -eq $file.Name}
-            $newContent = Get-Content $newSourceFile -encoding utf8
-            Set-Content -Path $File.Fullname -Value $newContent -Force
+            $newContent = Get-Content -Path $newSourceFile.FullName -encoding utf8
+            Set-Content -Path $file.FullName -Value $newContent -Force
           }
           Import-Module StigRepo -Force
 
