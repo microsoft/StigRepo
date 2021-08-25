@@ -1,0 +1,73 @@
+name: StigRepo-ActiveDirectory-BuildTest
+on:
+
+  pull_request:
+    branches: [ master ]
+
+  workflow_dispatch:
+
+jobs:
+  StigRepo-Build:
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Update Module Source Files with Current Branch
+        shell: powershell
+        run: |
+          try
+          {
+            Import-Module StigRepo -Force
+          }
+          catch 
+          {
+            Install-Module StigRepo -Force
+            Import-Module StigRepo -Force
+          }
+
+          $ModulePath = (Get-Module -Name StigRepo).Path
+          $ModuleRoot = Split-Path -Path $ModulePath -Parent
+          $localSourceFiles = Get-Childitem "$moduleRoot\Module\*.ps1"
+          $newSourceFiles = Get-ChildItem -Path "${env:GITHUB_WORKSPACE}\source\module\*.ps1"
+          Remove-Module StigRepo -Force
+
+          foreach ($file in $localSourceFiles)
+          {
+            $newSourceFile = $newSourceFiles | Where {$_.name -eq $file.Name}
+            $newContent = Get-Content -Path $newSourceFile.FullName -encoding utf8
+            Set-Content -Path $file.FullName -Value $newContent -Force
+          }
+          Import-Module StigRepo -Force
+
+      - name: StigRepo Build
+        shell: powershell
+        run: |
+          # Clean Old STIG Repository
+          Remove-Item -Path C:\SCAR -Recurse -Force -Confirm:$False
+          New-Item -ItemType Directory -Path C:\SCAR
+          Set-Location "C:\SCAR"
+          Import-Module StigRepo -Force
+          
+          # Build New STIG Repository
+          Initialize-StigRepo -RootPath "C:\SCAR"
+          Copy-Item -Path "C:\Program Files\WindowsPowerShell\Modules\StigRepo" -Destination "C:\SCAR\Resources\Modules" -Force -Confirm:$False
+          
+          # Execute StigRepo Build
+          New-SystemData -Scope 'Full'
+          Sync-DscModules -Force
+          Set-WinRMConfig
+          Start-DscBuild
+          Get-StigChecklists
+
+      - name: Publish STIG Checklists
+        uses: actions/upload-artifact@v2
+        with: 
+          name: STIG_Checklists
+          path: 'C:\Scar\Artifacts\Stig Checklists'
+      
+      - name: Publish System Data
+        uses: actions/upload-artifact@v2
+        with: 
+          name: System_Data
+          path: 'C:\Scar\Systems'

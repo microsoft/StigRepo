@@ -150,10 +150,10 @@ function New-SystemData
         {
             foreach ($targetMachine in $targetMachines)
             {
-                $targetMachineOUs += $targetMachine.DistinguishedName.Split(',')[1].split('=')[1]
+                $targetMachineOUs += [string]$targetMachine.DistinguishedName.Split(',')[1].split('=')[1]
             }
 
-            $uniqueOUs = $targetMachineOus | Get-Unique 
+            $uniqueOUs = $targetMachineOus | Select -Unique
             
             foreach ($ouName in $uniqueOUs)
             {
@@ -166,6 +166,8 @@ function New-SystemData
             {
                 $null = $orgUnits.add("Computers")
             }
+
+            $orgUnits = $orgunits | Where Name -ne $Null
         }
         Write-Output "`tSystem Count - $($targetMachines.Count)"
     }
@@ -248,8 +250,7 @@ function New-SystemData
 
                     #region Get Applicable STIGs
 
-                     $applicableStigs = @(Get-ApplicableStigs -Computername $machine)
-                    
+                    $applicableStigs = @(Get-ApplicableStigs -Computername $machine)
                     
                     if ($IncludeFilePaths)
                     {
@@ -711,12 +712,12 @@ function New-SystemData
                                         {
                                             Import-Module WebAdministration -WarningAction SilentlyContinue
 
-                                            if (Test-Path -Path "IIS:\Sites")
+                                            try
                                             {
                                                 $webSites = (Get-Childitem "IIS:\Sites" -ErrorAction stop).name
                                                 $appPools = (Get-Childitem "IIS:\AppPools" -ErrorAction stop).name
                                             }
-                                            else 
+                                            catch
                                             {
                                                 Import-Module IISAdministration -WarningAction SilentlyContinue
                                                 $webSites = (Get-IISSite).Name
@@ -1331,12 +1332,22 @@ function Set-WinRMConfig
     foreach ($machine in $TargetMachines)
     {
         # Test for whether WinRM is enabled or not
-        Write-Output "`t`tStarting Job - Configure WinRM MaxEnvelopeSizeKB on $machine"
+        Write-Output "`t`tStarting Job - Configure Windows Remote Management (WinRM) on $machine"
 
         $job = Start-Job -Scriptblock {
             $machine                = $using:machine
             $RootPath               = $using:rootPath
             $MaxEnvelopeSize        = $using:MaxEnvelopeSize
+
+            try
+            {
+                $null = Invoke-Command -ComputerName $Machine -Scriptblock {netsh advfirewall firewall set rule group="Windows Management Instrumentation (WMI)" new enable=yes}
+                Write-Output "`t`tWMI Firewall Rule Added to $Machine"
+            }
+            catch
+            {
+                Write-Warning "`t`tUnable to configure WMI Firewall Rule on $machine"
+            }
 
             try
             {
