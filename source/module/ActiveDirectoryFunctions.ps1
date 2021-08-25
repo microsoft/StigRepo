@@ -150,10 +150,10 @@ function New-SystemData
         {
             foreach ($targetMachine in $targetMachines)
             {
-                $targetMachineOUs += $targetMachine.DistinguishedName.Split(',')[1].split('=')[1]
+                $targetMachineOUs += [string]$targetMachine.DistinguishedName.Split(',')[1].split('=')[1]
             }
 
-            $uniqueOUs = $targetMachineOus | Get-Unique 
+            $uniqueOUs = $targetMachineOus | Select -Unique
             
             foreach ($ouName in $uniqueOUs)
             {
@@ -166,6 +166,8 @@ function New-SystemData
             {
                 $null = $orgUnits.add("Computers")
             }
+
+            $orgUnits = $orgunits | Where Name -ne $Null
         }
         Write-Output "`tSystem Count - $($targetMachines.Count)"
     }
@@ -248,8 +250,7 @@ function New-SystemData
 
                     #region Get Applicable STIGs
 
-                     $applicableStigs = @(Get-ApplicableStigs -Computername $machine)
-                    
+                    $applicableStigs = @(Get-ApplicableStigs -Computername $machine)
                     
                     if ($IncludeFilePaths)
                     {
@@ -441,12 +442,20 @@ function New-SystemData
                                     manualChecks   = Get-StigFiles -Rootpath $Rootpath -StigType "Chrome" -FileType "ManualChecks" -NodeName $machine
                                 }
                             }
-                            "Adobe"
+                            "AdobeReader*"
                             {
                                 $adobeStigFiles = @{
-                                    orgsettings  = Get-StigFiles -Rootpath $Rootpath -StigType "Adobe" -FileType "OrgSettings" -NodeName $machine
-                                    xccdfPath    = Get-StigFiles -Rootpath $Rootpath -StigType "Adobe" -FileType "Xccdf" -NodeName $machine
-                                    manualChecks = Get-StigFiles -Rootpath $Rootpath -StigType "Adobe" -FileType "ManualChecks" -NodeName $machine
+                                    orgSettings  = Get-StigFiles -Rootpath $Rootpath -StigType "AdobeReader" -FileType "OrgSettings" -NodeName $machine
+                                    xccdfPath    = Get-StigFiles -Rootpath $Rootpath -StigType "AdobeReader" -FileType "Xccdf" -NodeName $machine
+                                    manualChecks = Get-StigFiles -Rootpath $Rootpath -StigType "AdobeReader" -FileType "ManualChecks" -NodeName $machine
+                                }
+                                }
+                            "AdobePro*"
+                            {
+                                $adobeProStigFiles = @{
+                                    orgSettings  = Get-StigFiles -Rootpath $Rootpath -StigType "AdobePro" -FileType "OrgSettings" -NodeName $machine
+                                    xccdfPath    = Get-StigFiles -Rootpath $Rootpath -StigType "AdobePro" -FileType "Xccdf" -NodeName $machine
+                                    manualChecks = Get-StigFiles -Rootpath $Rootpath -StigType "AdobePro" -FileType "ManualChecks" -NodeName $machine
                                 }
                             }
                             "OracleJRE"
@@ -711,12 +720,12 @@ function New-SystemData
                                         {
                                             Import-Module WebAdministration -WarningAction SilentlyContinue
 
-                                            if (Test-Path -Path "IIS:\Sites")
+                                            try
                                             {
                                                 $webSites = (Get-Childitem "IIS:\Sites" -ErrorAction stop).name
                                                 $appPools = (Get-Childitem "IIS:\AppPools" -ErrorAction stop).name
                                             }
-                                            else 
+                                            catch
                                             {
                                                 Import-Module IISAdministration -WarningAction SilentlyContinue
                                                 $webSites = (Get-IISSite).Name
@@ -894,7 +903,7 @@ function New-SystemData
                                     }
                                     else { $null = $configContent.add("`n`n`t`tPowerSTIG_Chrome = @{}") }
                                 }
-                                "Adobe"
+                                "AdobeReader*"
                                 {
                                     $null = $configContent.add("`n`n`t`tPowerSTIG_Adobe =")
                                     $null = $configContent.add("`n`t`t@{")
@@ -905,6 +914,21 @@ function New-SystemData
                                         $null = $configContent.add("`n`t`t`txccdfPath			= `"$($adobeStigFiles.XccdfPath)`"")
                                         $null = $configContent.add("`n`t`t`tOrgSettings			= `"$($adobeStigFiles.OrgSettings)`"")
                                         $null = $configContent.add("`n`t`t`tManualChecks 		= `"$($adobeStigFiles.ManualChecks)`"")
+                                        $null = $configContent.add("`n`t`t}")
+                                    }
+                                    else { $null = $configContent.add("`n`t`t}") }
+                                }
+                                "AdobePro*"
+                                {
+                                    $null = $configContent.add("`n`n`t`tPowerSTIG_AdobePro =")
+                                    $null = $configContent.add("`n`t`t@{")
+                                    $null = $configContent.add("`n`t`t`tAdobeApp            = `"AcrobatPro`"")
+
+                                    if ($IncludeFilePaths)
+                                    {
+                                        $null = $configContent.add("`n`t`t`txccdfPath			= `"$($adobeProStigFiles.XccdfPath)`"")
+                                        $null = $configContent.add("`n`t`t`tOrgSettings			= `"$($adobeProStigFiles.OrgSettings)`"")
+                                        $null = $configContent.add("`n`t`t`tManualChecks 		= `"$($adobeProStigFiles.ManualChecks)`"")
                                         $null = $configContent.add("`n`t`t}")
                                     }
                                     else { $null = $configContent.add("`n`t`t}") }
@@ -1331,12 +1355,22 @@ function Set-WinRMConfig
     foreach ($machine in $TargetMachines)
     {
         # Test for whether WinRM is enabled or not
-        Write-Output "`t`tStarting Job - Configure WinRM MaxEnvelopeSizeKB on $machine"
+        Write-Output "`t`tStarting Job - Configure Windows Remote Management (WinRM) on $machine"
 
         $job = Start-Job -Scriptblock {
             $machine                = $using:machine
             $RootPath               = $using:rootPath
             $MaxEnvelopeSize        = $using:MaxEnvelopeSize
+
+            try
+            {
+                $null = Invoke-Command -ComputerName $Machine -Scriptblock {netsh advfirewall firewall set rule group="Windows Management Instrumentation (WMI)" new enable=yes}
+                Write-Output "`t`tWMI Firewall Rule Added to $Machine"
+            }
+            catch
+            {
+                Write-Warning "`t`tUnable to configure WMI Firewall Rule on $machine"
+            }
 
             try
             {

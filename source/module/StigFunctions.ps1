@@ -1199,10 +1199,15 @@ function Get-StigFiles
                     $xccdfContainer     = (Resolve-Path -Path "$xccdfArchive\Chrome" -ErrorAction SilentlyContinue).Path
                     $xccdfs             = (Get-ChildItem -Path "$xccdfContainer\*.xml" | Where-Object { $_.name -like "*chrome*xccdf.xml"}).name
                 }
-                "Adobe"
+                "AdobeReader*"
                 {
-                    $xccdfContainer     = (Resolve-Path -Path "$xccdfArchive\adobe" -ErrorAction SilentlyContinue).Path
-                    $xccdfs             = (Get-ChildItem -Path "$xccdfContainer\*.xml" | Where-Object { $_.name -like "*adobe*xccdf.xml"}).name
+                    $xccdfContainer     = (Resolve-Path -Path "$xccdfArchive\Adobe" -ErrorAction SilentlyContinue).Path
+                    $xccdfs             = (Get-ChildItem -Path "$xccdfContainer\*.xml" | Where-Object { $_.name -like "*reader*xccdf.xml"}).name
+                }
+                "AdobePro*"
+                {
+                    $xccdfContainer     = (Resolve-Path -Path "$xccdfArchive\Adobe" -ErrorAction SilentlyContinue).Path
+                    $xccdfs             = (Get-ChildItem -Path "$xccdfContainer\*.xml" | Where-Object { $_.name -like "*pro*xccdf.xml"}).name
                 }
                 "McAfee"
                 {
@@ -1309,10 +1314,15 @@ function Get-StigFiles
                     $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\Chrome" -ErrorAction SilentlyContinue).Path
                     $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*Chrome*ManualChecks.psd1"}).basename 
                 }
-                "Adobe"
+                "AdobeReader*"
                 {
                     $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\adobe" -ErrorAction SilentlyContinue).Path
-                    $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*adobe*ManualChecks.psd1"}).basename 
+                    $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*Reader*ManualChecks.psd1"}).basename 
+                }
+                "AdobePro*"
+                {
+                    $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\adobe" -ErrorAction SilentlyContinue).Path
+                    $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*Pro*ManualChecks.psd1"}).basename 
                 }
                 "McAfee"
                 {
@@ -1392,7 +1402,8 @@ function Get-StigFiles
                 "OracleJRE"         { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType-$version"}).name}
                 "DomainController"  { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "WindowsServer-$version-DC*"}).name}
                 "FireFox"           { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "*firefox*"}).name}
-                "Adobe"             { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType-*.xml"}).name}
+                "AdobeReader*"      { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "*AcrobatReader*"}).name}
+                "AdobePro*"         { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "*AcrobatPro*"}).name}
                 "Office*"
                 {
                     $officeApp              = $stigType.split('_')[1]
@@ -1520,6 +1531,7 @@ function Get-ApplicableStigs
         switch -Wildcard ($installedSoftware.DisplayName)
         {
             "*Adobe Acrobat*"   {$null = $applicableStigs.add("AdobeReader")}
+            "*Adobe Acrobat DC*"{$null = $applicableStigs.add("AdobePro")}
             "*McAfee*"          {$null = $applicableStigs.add("McAfee")}
             "*Office*16*"       {$null = $applicableStigs.add("Office2016")}
             "*Office*15*"       {$null = $applicableStigs.add("Office2013")}
@@ -1570,7 +1582,7 @@ function Get-ApplicableStigs
     catch
     {
         Write-Output "`t`t`tUnable to determine STIG Applicability for $ComputerName. Please verify WinRM connectivity."
-        return $null
+        throw $_
         Remove-PsSession $Session
     }
 }
