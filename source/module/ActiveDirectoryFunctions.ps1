@@ -918,6 +918,7 @@ function New-SystemData
                                     }
                                     else { $null = $configContent.add("`n`t`t}") }
                                 }
+                                <# Update when Adobe Acrobat Pro is included within PowerStig
                                 "AdobePro*"
                                 {
                                     $null = $configContent.add("`n`n`t`tPowerSTIG_AdobePro =")
@@ -933,6 +934,7 @@ function New-SystemData
                                     }
                                     else { $null = $configContent.add("`n`t`t}") }
                                 }
+                                #>
                                 "OracleJRE"
                                 {
                                     $null = $configContent.add("`n`n`t`tPowerSTIG_OracleJRE =")
