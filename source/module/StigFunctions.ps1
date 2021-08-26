@@ -1333,7 +1333,7 @@ function Get-StigFiles
                 "OracleJRE"
                 {
                     $manualCheckContainer   = (Resolve-Path -Path "$manualCheckFolder\OracleJRE" -ErrorAction SilentlyContinue).Path
-                    $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*OracleJRE*$version*.psd1"}).basename 
+                    $manualCheckFiles       = (Get-ChildItem -Path $manualCheckContainer | Where-Object { $_.name -like "*JRE*$version*.psd1"}).basename 
                 }
                 "WindowsDefender"
                 {
@@ -1385,11 +1385,10 @@ function Get-StigFiles
                 "Edge"              { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "*$stigType*"}).name}
                 "Chrome"            { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "*$stigType*"}).name}
                 "McAfee"            { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType-$version*"}).name}
-                "OracleJRE"         { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType-$version*"}).name}
                 "WindowsDefender"   { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType-$version*"}).name}
                 "WindowsFirewall"   { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "*$stigType*"}).name}
                 "WindowsDNSServer"  { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType*"}).name}
-                "OracleJRE"         { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType-$version"}).name}
+                "OracleJRE"         { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType-$version*"}).name}
                 "DomainController"  { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "WindowsServer-$version-DC*"}).name}
                 "FireFox"           { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "*firefox*"}).name}
                 "Adobe"             { $orgSettingsFiles = (Get-ChildItem $orgSettingsFolder | Where-Object { $_.name -like "$stigType-*.xml"}).name}
@@ -1526,7 +1525,7 @@ function Get-ApplicableStigs
             "*FireFox*"         {$null = $applicableStigs.add("FireFox")}
             "*Chrome*"          {$null = $applicableStigs.add("Chrome")}
             "*Edge*"            {$null = $applicableStigs.add("Edge")}
-            "*OracleJRE*"       {$null = $applicableStigs.add("OracleJRE")}
+            "*Java*"            {$null = $applicableStigs.add("OracleJRE")}
             "Microsoft SQL Server*"
             {
                 $null = $applicableStigs.add("SqlServerInstance")
@@ -1570,7 +1569,7 @@ function Get-ApplicableStigs
     catch
     {
         Write-Output "`t`t`tUnable to determine STIG Applicability for $ComputerName. Please verify WinRM connectivity."
-        return $null
+        throw $_
         Remove-PsSession $Session
     }
 }
