@@ -442,12 +442,20 @@ function New-SystemData
                                     manualChecks   = Get-StigFiles -Rootpath $Rootpath -StigType "Chrome" -FileType "ManualChecks" -NodeName $machine
                                 }
                             }
-                            "Adobe"
+                            "AdobeReader*"
                             {
                                 $adobeStigFiles = @{
-                                    orgsettings  = Get-StigFiles -Rootpath $Rootpath -StigType "Adobe" -FileType "OrgSettings" -NodeName $machine
-                                    xccdfPath    = Get-StigFiles -Rootpath $Rootpath -StigType "Adobe" -FileType "Xccdf" -NodeName $machine
-                                    manualChecks = Get-StigFiles -Rootpath $Rootpath -StigType "Adobe" -FileType "ManualChecks" -NodeName $machine
+                                    orgSettings  = Get-StigFiles -Rootpath $Rootpath -StigType "AdobeReader" -FileType "OrgSettings" -NodeName $machine
+                                    xccdfPath    = Get-StigFiles -Rootpath $Rootpath -StigType "AdobeReader" -FileType "Xccdf" -NodeName $machine
+                                    manualChecks = Get-StigFiles -Rootpath $Rootpath -StigType "AdobeReader" -FileType "ManualChecks" -NodeName $machine
+                                }
+                                }
+                            "AdobePro*"
+                            {
+                                $adobeProStigFiles = @{
+                                    orgSettings  = Get-StigFiles -Rootpath $Rootpath -StigType "AdobePro" -FileType "OrgSettings" -NodeName $machine
+                                    xccdfPath    = Get-StigFiles -Rootpath $Rootpath -StigType "AdobePro" -FileType "Xccdf" -NodeName $machine
+                                    manualChecks = Get-StigFiles -Rootpath $Rootpath -StigType "AdobePro" -FileType "ManualChecks" -NodeName $machine
                                 }
                             }
                             "OracleJRE"
@@ -895,7 +903,7 @@ function New-SystemData
                                     }
                                     else { $null = $configContent.add("`n`n`t`tPowerSTIG_Chrome = @{}") }
                                 }
-                                "Adobe"
+                                "AdobeReader*"
                                 {
                                     $null = $configContent.add("`n`n`t`tPowerSTIG_Adobe =")
                                     $null = $configContent.add("`n`t`t@{")
@@ -910,6 +918,23 @@ function New-SystemData
                                     }
                                     else { $null = $configContent.add("`n`t`t}") }
                                 }
+                                <# Update when Adobe Acrobat Pro is included within PowerStig
+                                "AdobePro*"
+                                {
+                                    $null = $configContent.add("`n`n`t`tPowerSTIG_AdobePro =")
+                                    $null = $configContent.add("`n`t`t@{")
+                                    $null = $configContent.add("`n`t`t`tAdobeApp            = `"AcrobatPro`"")
+
+                                    if ($IncludeFilePaths)
+                                    {
+                                        $null = $configContent.add("`n`t`t`txccdfPath			= `"$($adobeProStigFiles.XccdfPath)`"")
+                                        $null = $configContent.add("`n`t`t`tOrgSettings			= `"$($adobeProStigFiles.OrgSettings)`"")
+                                        $null = $configContent.add("`n`t`t`tManualChecks 		= `"$($adobeProStigFiles.ManualChecks)`"")
+                                        $null = $configContent.add("`n`t`t}")
+                                    }
+                                    else { $null = $configContent.add("`n`t`t}") }
+                                }
+                                #>
                                 "OracleJRE"
                                 {
                                     $null = $configContent.add("`n`n`t`tPowerSTIG_OracleJRE =")
