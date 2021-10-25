@@ -99,6 +99,7 @@ function New-SystemData
     $targetMachines     = New-Object System.Collections.ArrayList
     $orgUnits           = New-Object System.Collections.ArrayList
     $osVersion          = (Get-WmiObject Win32_OperatingSystem).caption
+    $computersContainer = (Get-ADDomain).ComputersContainer
 
     Write-Output "`tBeginning DSC Configuration Data Build - Identifying Target Systems."
 
@@ -150,16 +151,14 @@ function New-SystemData
         {
             foreach ($targetMachine in $targetMachines)
             {
-                $targetMachineOUs += [string]$targetMachine.DistinguishedName.Split(',')[1].split('=')[1]
-            }
-
-            $uniqueOUs = $targetMachineOus | Select -Unique
-            
-            foreach ($ouName in $uniqueOUs)
-            {
-                $filter = [scriptblock]::Create("Name -eq `"$ouName`"")
-                $ouObject = Get-ADOrganizationalUnit -Filter $filter
+                if (($targetMachine.DistinguishedName -split ',',2)[-1] -ne $computersContainer)
+                {
+                $targetMachineOuDN = $targetMachine.DistinguishedName
+                $targetMachineOus += [string]$targetMachine
+                $targetMachineOu = $targetMachineOuDn.Substring($targetMachineOuDn.IndexOf('OU='))
+                $ouObject = Get-ADOrganizationalUnit -Identity $targetMachineOu
                 $null = $orgUnits.add($ouObject)
+                }
             }
 
             if ($Scope -eq "Full")
