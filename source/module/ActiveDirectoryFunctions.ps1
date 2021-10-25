@@ -153,11 +153,11 @@ function New-SystemData
             {
                 if (($targetMachine.DistinguishedName -split ',',2)[-1] -ne $computersContainer)
                 {
-                $targetMachineOuDN = $targetMachine.DistinguishedName
-                $targetMachineOus += [string]$targetMachine
-                $targetMachineOu = $targetMachineOuDn.Substring($targetMachineOuDn.IndexOf('OU='))
-                $ouObject = Get-ADOrganizationalUnit -Identity $targetMachineOu
-                $null = $orgUnits.add($ouObject)
+                    $targetMachineOuDN = $targetMachine.DistinguishedName
+                    $targetMachineOus += [string]$targetMachine
+                    $targetMachineOu = $targetMachineOuDn.Substring($targetMachineOuDn.IndexOf('OU='))
+                    $ouObject = Get-ADOrganizationalUnit -Identity $targetMachineOu
+                    $null = $orgUnits.add($ouObject)
                 }
             }
 
