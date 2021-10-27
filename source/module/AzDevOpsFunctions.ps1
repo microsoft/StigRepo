@@ -66,7 +66,7 @@ function New-BuildAgent
 
     if ('' -eq $DevOpsUrl)
     {
-        Write-Output "Azure DevOps URL was not provided."
+        Write-Output "Azure DevOps URL was not provided.`n`tExample: https://MyDevOpsServer.Com/MyOrganization"
         $DevOpsURL = Read-Host "`tProvide the URL of your Azure DevOps website"
         Write-Output "`n"
     }
@@ -87,6 +87,14 @@ function New-BuildAgent
         $AccessToken = Read-Host "`tProvide your Personal Access Token or press `"CTRL+C`" to cancel"
         Write-Output "`n"
     }
+    
+    if (-not (Test-Path $AgentPath) -or '' -eq $AgentPath)
+    {
+        Write-Output "Agent Directory was not provided."
+        $AgentPath = Read-Host "`tSpecify the Agent Path. Example `"C:\MyAgents`""
+        $null = New-Item $AgentPath -ItemType Directory -Force -Confirm:$false
+        Write-Output "`n"
+    }
 
     if ('' -eq $AgentZip)
     {
@@ -97,26 +105,9 @@ function New-BuildAgent
         {
             Write-Output "`tDownloading Azure DevOps Agent Zip Package"
             $null = New-Item -ItemType "Directory" -Path "C:\StigRepo-Temp" -Force
-            Invoke-WebRequest "https://vstsagentpackage.azureedge.net/agent/2.194.0/vsts-agent-win-x64-2.194.0.zip" -OutFile "C:\StigRepo-Temp\AzDevOpsAgent.zip"
-            $AgentZip = "C:\StigRepo-Temp\AzDevOpsAgent.zip"
+            Invoke-WebRequest "https://vstsagentpackage.azureedge.net/agent/2.194.0/vsts-agent-win-x64-2.194.0.zip" -OutFile "$AgentPath\AzDevOpsAgent.zip"
+            $AgentZip = "$AgentPath\AzDevOpsAgent.zip"
             $cleanup = $true
-        }
-        Write-Output "`n"
-    }
-
-    if (-not (Test-Path $AgentPath) -or '' -eq $AgentPath)
-    {
-        Write-Output "Agent Directory was not provided."
-        $prompt = Read-Host "Built Agents in $AgentPath? Y/N"
-
-        if ($prompt -like "y*")
-        {
-            Write-Output "Creating Agent Directory - $AgentPath"
-            $null = New-Item $AgentPath -ItemType Directory -Force -Confirm:$false
-        }
-        else 
-        {
-            $AgentPath = Read-Host "Specify the Agent Path. Example `"C:\MyAgents`""
         }
         Write-Output "`n"
     }
@@ -133,6 +124,6 @@ function New-BuildAgent
 
     if ($cleanup)
     {
-        Remove-Item "C:\StigRepo-Temp" -Force -Recurse -Confirm:$false
+        Remove-Item $AgentZip -Force -Recurse -Confirm:$false
     }
 }
