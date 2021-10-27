@@ -12,7 +12,7 @@ function New-BuildAgent
     Path to the Self-Hosted Agent Zip file. The self-hosted agent zip file can be downloaded using the following path within the Azure DevOps website:
     Project Settings -> Agent Pools ->   
 
-    .PARAMETER AgentPool
+    .PARAMETER AgentPoolName
     Name of the Agent Pool to build the new self-hosted agents in. 
 
     .PARAMETER DevOpsUrl
@@ -28,7 +28,7 @@ function New-BuildAgent
     Number of self-hosted agents to build. 
 
     .EXAMPLE
-    New-SystemData -Rootpath "C:\SCAR" -SearchBase "CN=Servers,CN=Enterprise Management,DC=contoso,DC=com"
+    New-BuildAgent -AgentPath "C:\Agents" -AgentZip "C:\Agent.zip" -AgentPoolName "MyAgentPool" -DevOpsUrl "https://MyDevOpsServer.com/MyOrganization" -AccessToken $myAccessToken -AgentName "StigAgent" -AgentCount 5
     #>
     
     [cmdletbinding()]
