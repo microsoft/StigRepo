@@ -49,7 +49,7 @@ function New-BuildAgent
         [Parameter()]
         [string]
         $AgentName = "StigRepo-Agent",
-        
+
         [Parameter()]
         [string]
         $DevOpsUrl,
@@ -75,7 +75,7 @@ function New-BuildAgent
     {
         Write-Output "Agent Pool Name was not provided."
         Write-Output "`tFollow the link to the Azure DevOps Wiki below for instructions on how to create an Agent Pool:"
-        Write-Output "`tthttps://docs.microsoft.com/en-us/azure/devops/pipelines/agents/pools-queues"
+        Write-Output "`thttps://docs.microsoft.com/en-us/azure/devops/pipelines/agents/pools-queues"
         $DevOpsURL = Read-Host "`tProvide the name of an existing Agent Pool or press `"CTRL+C`" to cancel"
         Write-Output "`n"
     }
@@ -128,7 +128,7 @@ function New-BuildAgent
         Write-Output "`tBuilding $AgentName$iteration"
         $AgentFolder = New-Item "$AgentPath\$AgentName$iteration" -ItemType Directory -Force -Confirm:$false
         $null = Expand-Archive -Path $AgentZip -DestinationPath $AgentFolder -Force
-        $null = . $agentFolder\config --unattended --url $DevOpsUrl --auth Pat --token $AccessToken --pool $AgentPoolName --Agent $AgentName$iteration --acceptTeeEula --runAsService --runAsAutoLogon --noRestart
+        . $agentFolder\config remove --unattended --url $DevOpsUrl --auth Pat --token $AccessToken --pool $AgentPoolName --Agent $AgentName$iteration --acceptTeeEula --runAsService --runAsAutoLogon --noRestart
     }
 
     if ($cleanup)
