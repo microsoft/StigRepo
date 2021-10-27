@@ -245,10 +245,10 @@ function Update-StigRepo
     $powerStigProcessedPath = (Resolve-Path "$ModulePath\PowerSTIG\*\StigData\Processed").Path
     $xccdfs                 = Get-Childitem "$powerStigXccdfPath\*.xml" -recurse
     $processedXccdfs        = Get-Childitem "$powerStigProcessedPath\*.xml" -recurse | where {$_.name -notlike "*org.default*"}
-    $newManualCheckPath     = New-Item -ItemType Directory -Path $StigDataPath -Name "Manual Checks" -Force -Confirm:$False
+    $newManualCheckPath     = New-Item -ItemType Directory -Path "$StigDataPath\Manual Checks" -Force -Confirm:$False
     $oldManualCheckPath     = (Resolve-Path "$StigDataPath-Backup\Manual Checks").Path
     $currentManualChecks    = Get-ChildItem -Path $oldManualCheckPath
-    $currentManualChecks | Copy-Item -Destination $StigDataPath -Force -Recurse -Confirm:$false
+    $currentManualChecks | Copy-Item -Destination $newManualCheckPath -Force -Recurse -Confirm:$false
 
     foreach ($xccdf in $processedXccdfs)
     {
