@@ -44,7 +44,7 @@ function New-BuildAgent
         
         [Parameter()]
         [string]
-        $AgentPath = "$env:SystemDrive\StigRepo-Agents",
+        $AgentPath,
         
         [Parameter()]
         [string]
