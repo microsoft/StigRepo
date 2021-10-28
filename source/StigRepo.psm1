@@ -33,5 +33,6 @@ Export-ModuleMember -Function @(
     'Get-StigFiles',
     'Get-CombinedConfigs',
     'Export-DynamicConfigs',
-    'Export-Mofs'
+    'Export-Mofs',
+    'New-BuildAgent'
 )

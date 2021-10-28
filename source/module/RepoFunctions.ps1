@@ -24,12 +24,10 @@ function Initialize-StigRepo
         $RootPath
     )
 
-    Write-Output "Beginning Stig Compliance Automation Repository (SCAR) Build"
-
     if ('' -eq $RootPath)
     {
         $currentLocation = (Get-Location).Path
-        $prompt = Read-Host -Prompt "`n`tThe `$RootPath Parameter was not provided.`n`tCurrent Location: $currentLocation`n`tDo you want to initialize the repository at your current location? Y/N"
+        $prompt = Read-Host -Prompt "The `$RootPath Parameter was not provided.`n`tCurrent Location: $currentLocation`n`tDo you want to build the STIG Repository in this location? Y/N"
 
         if ($prompt -like "y*")
         {
@@ -41,20 +39,29 @@ function Initialize-StigRepo
             return
         }
     }
+
+    Write-Output "Beginning StigRepo Build"
     Write-Output "`tBuilding Repository Folder Structure"
 
     # Systems Folder
     $systemsPath    = New-Item -Path "$RootPath\Systems" -ItemType Directory -Force
     $stagingPath    = New-Item -Path "$SystemsPath\Staging" -ItemType Directory -Force
+    $keepFile       = New-Item -Path "$SystemsPath\Staging\.keep" -ItemType File -Force
 
     # Configurations Folder
     $configPath     = New-Item -Path "$RootPath\Configurations" -ItemType Directory -Force
-
+    
     # Artifacts Folder
     $artifactPath   = New-Item -Path "$RootPath\Artifacts" -ItemType Directory -Force
     $dscConfigPath  = New-Item -Path "$artifactPath\DscConfigs" -ItemType Directory -Force
     $mofPath        = New-Item -Path "$artifactPath\Mofs" -ItemType Directory -Force
-    $CklPath        = New-Item -Path "$artifactPath\Stig Checklists" -ItemType Directory -Force
+    $cklPath        = New-Item -Path "$artifactPath\Stig Checklists" -ItemType Directory -Force
+    
+    # Add .keep files to empty folders
+    $null = New-Item -Path "$mofPath\.keep" -ItemType File -Force
+    $null = New-Item -Path "$cklPath\.keep" -ItemType File -Force
+    $null = New-Item -Path "$dscConfigPath\.keep" -ItemType File -Force
+    $null = New-Item -Path "$SystemsPath\Staging\.keep" -ItemType File -Force
 
     # Resources Folder
     $resourcePath   = New-Item -Path "$RootPath\Resources" -ItemType Directory -Force
@@ -81,7 +88,7 @@ function Initialize-StigRepo
         return
     }
 
-    Update-StigRepo -RemoveBackup
+    Update-StigRepo -RemoveBackup -SkipStigRepoModule
 
     Write-Output "`n`tInstalling/Importing SCAR Modules"
     Sync-DscModules -LocalHost -Force
@@ -114,13 +121,11 @@ function Update-StigRepo
     .EXAMPLE
 
     Update the STIG Compliance Automation Repository in the current filepath
-
     Update-StigRepo
 
     .EXAMPLE
 
     Update the STIG Compliance Automation Repository within a specified folderpath
-
     Initialize-StigRepo -RootPath "C:\StigRepo"
 
     #>
@@ -146,24 +151,23 @@ function Update-StigRepo
 
     )
 
-    Write-Output "Starting SCAR Update"
+    Write-Output "Beginning StigRepo Update"
+    
     $stigDataPath   = (Resolve-Path -Path "$RootPath\Resources\Stig Data").Path
     $modulePath     = (Resolve-Path -Path "$RootPath\Resources\Modules" -erroraction Stop).Path
     $modules        = Get-Childitem $ModulePath
 
     # Update Dependent Modules
-    Write-Output "`tRemoving old module dependencies"
+    Write-Output "`tUpdating Powershell Module Dependencies"
     foreach ($module in $modules)
     {
-        Write-Output "`t`tRemoving $($module.name)"
+        Write-Verbose "`t`tRemoving $($module.name)"
         Remove-Item $module.fullname -force -Recurse -Confirm:$false
     }
 
-    Write-Output "`tInstalling new module Dependencies"
-
     if (-not ($SkipStigRepoModule))
     {
-        Write-Output "`t`tUpdating StigRepo Module"
+        Write-Verbose "`t`tUpdating StigRepo Module"
         try
         {
             if ($verbose)
@@ -210,13 +214,14 @@ function Update-StigRepo
     Write-Output "`tUpdating STIG Data Files"
 
     # Backup STIG Data Folder
-    Write-Output "`n`t`tBacking up current STIG Data"
+    Write-Output "`t`tBacking up current STIG Data"
+
     $resourcePath = Split-Path $StigDataPath -Parent
     $backupPath   = "$resourcePath\Stig Data-Backup"
     Copy-Item $stigDataPath -Destination $backupPath -Force -Recurse
 
     # Update Xccdfs
-    Write-Output "`n`t`tUpdating STIG XCCDF Files"
+    Write-Output "`t`tUpdating STIG XCCDF Files"
     Get-Item "$StigDataPath\Xccdfs" | Remove-Item -Recurse -Force -Confirm:$false
     $currentXccdfFolders    = Get-Childitem "$StigDataPath-Backup\Xccdfs\*" -Directory
     $newXccdfPath           = New-Item -ItemType Directory -Path $StigDataPath -Name "Xccdfs" -Force -Confirm:$false
@@ -226,7 +231,7 @@ function Update-StigRepo
     $customXccdfs.FullName  | Copy-Item -Destination $newXccdfPath -Recurse -Force -Confirm:$false -ErrorAction SilentlyContinue
 
     # Update Org Settings
-    Write-Output "`n`t`tUpdating Organizational Setting Files"
+    Write-Output "`t`tUpdating Organizational Setting Files"
     Get-Item "$StigDataPath\Organizational Settings" | Remove-Item -Recurse -Force -Confirm:$false
     $currentOrgSettings = Get-Childitem "$StigDataPath-Backup\Organizational Settings\*org.default.xml"
     $null               = New-Item -ItemType Directory -Path $StigDataPath -Name "Organizational Settings" -Force -Confirm:$false
@@ -234,16 +239,16 @@ function Update-StigRepo
     $newOrgSettings | Copy-Item -Destination "$StigDataPath\Organizational Settings" -Force -Confirm:$false
 
     # Manual Checks
-    Write-Output "`n`t`tUpdating Manual Check Files"
+    Write-Output "`t`tUpdating Manual Check Files"
 
     $powerStigXccdfPath     = (Resolve-Path "$modulePath\PowerStig\*\StigData\Archive").Path
     $powerStigProcessedPath = (Resolve-Path "$ModulePath\PowerSTIG\*\StigData\Processed").Path
     $xccdfs                 = Get-Childitem "$powerStigXccdfPath\*.xml" -recurse
     $processedXccdfs        = Get-Childitem "$powerStigProcessedPath\*.xml" -recurse | where {$_.name -notlike "*org.default*"}
-    $newManualCheckPath     = New-Item -ItemType Directory -Path $StigDataPath -Name "Manual Checks" -Force -Confirm:$False
+    $newManualCheckPath     = New-Item -ItemType Directory -Path "$StigDataPath\Manual Checks" -Force -Confirm:$False
     $oldManualCheckPath     = (Resolve-Path "$StigDataPath-Backup\Manual Checks").Path
     $currentManualChecks    = Get-ChildItem -Path $oldManualCheckPath
-    $currentManualChecks | Copy-Item -Destination $StigDataPath -Force -Recurse -Confirm:$false
+    $currentManualChecks | Copy-Item -Destination $newManualCheckPath -Force -Recurse -Confirm:$false
 
     foreach ($xccdf in $processedXccdfs)
     {
@@ -278,7 +283,7 @@ function Update-StigRepo
         $manualRules        = $xccdfContent.DisaStig.ManualRule.Rule.id
         $manualCheckContent = New-Object System.Collections.ArrayList
         $manualCheckFolder  = "$StigDataPath\Manual Checks\$xccdfFolderName"
-        $stigVersion = $xccdf.basename.split("-") | Select -last 1
+        $stigVersion        = $xccdf.basename.split("-") | Select -last 1
 
         if (-not(Test-Path $manualCheckFolder))
         {
@@ -288,7 +293,7 @@ function Update-StigRepo
 
         if ($null -ne $manualRules)
         {
-            Write-Output "`t`t`tGenerating Manual Check file for $($xccdf.Name)"
+            Write-Verbose "`t`t`tGenerating Manual Check file for $($xccdf.Name)"
             foreach ($vul in $manualRules)
             {
                 $null = $manualCheckContent.add("@{")
@@ -301,7 +306,7 @@ function Update-StigRepo
         }
         else
         {
-            Write-Output "`t`t`tGenerating Manual Check file for $($xccdf.Name)"
+            Write-Verbose "`t`t`tGenerating Manual Check file for $($xccdf.Name)"
             $null = $manualCheckContent.add("@{")
             $null = $manualCheckContent.add("    VulID       = `"V-XXXX`"")
             $null = $manualCheckContent.add("    Status      = `"NotReviewed`"")
@@ -430,7 +435,7 @@ function Start-DscBuild
             $null = Get-ChildItem -Path "$systemsPath\*.psd1" -Recurse | Where-Object { ($_.Fullname -NotLike "*Staging*") -and ($_.Fullname -Notlike "*Readme*") -and ($_.FullName -like "*$ComputerName*")} | ForEach-Object {$null = $Systemfiles.add($_)}
             Get-CombinedConfigs -RootPath $RootPath -AllNodesDataFile $allNodesDataFile -SystemFiles $SystemFiles
             Export-DynamicConfigs -SystemFiles $SystemFiles -ArtifactPath $artifactPath -DscConfigPath $dscConfigPath
-            Export-Mofs -RootPath $RootPath -TargetFolder $TargetFolder
+            Export-Mofs -RootPath $RootPath -ComputerName $ComputerName
         }
         elseif ('' -eq $TargetFolder)
         {
@@ -731,7 +736,7 @@ function Export-DynamicConfigs
         }
         $null = $jobs.add($job.Id)
     }
-    Write-Output "`n`tDSC Compilation jobs started. Checking status every 30 seconds and output will be displayed once complete."
+    Write-Output "`n`tDSC Compilation job(s) started. Checking status every 30 seconds and output will be displayed once complete."
     do
     {
         $completedJobs  = (Get-Job -ID $jobs | where {$_.state -ne "Running"}).count
@@ -770,6 +775,10 @@ function Export-Mofs
         $TargetFolder,
 
         [Parameter()]
+        [string]
+        $ComputerName,
+
+        [Parameter()]
         [System.Collections.ArrayList]
         $SystemFiles
 
@@ -790,6 +799,10 @@ function Export-Mofs
         {
             $null = Get-Childitem "$RootPath\Systems\$TargetFolder\*.psd1" -Recurse | Where-Object fullname -notlike "*staging*" | ForEach-Object {$null = $SystemFiles.add($_)}
         }
+        elseif ('' -ne $ComputerName)
+        {
+            $null = Get-Childitem "$RootPath\Systems\*.psd1" -Recurse | Where-Object {$_.fullname -notlike "*staging*" -and $_.BaseName -eq $ComputerName} | ForEach-Object {$null = $SystemFiles.add($_)}
+        }
         else
         {
             $null = Get-Childitem "$RootPath\Systems\*.psd1" -Recurse | Where-Object fullname -notlike "*staging*" | ForEach-Object {$null = $SystemFiles.add($_)}
@@ -798,8 +811,8 @@ function Export-Mofs
 
     foreach ($file in $SystemFiles)
     {
-
         $basename = $file.basename
+        
         if (Test-Path "$dscConfigPath\$basename.ps1")
         {
             $null = Get-Item -path "$dscConfigPath\$basename.ps1" -erroraction SilentlyContinue | ForEach-Object {$null = $dscNodeConfigs.add($_)}
@@ -869,7 +882,9 @@ function Export-Mofs
             }
         }
     }
-    Write-Output "`n`tMOF Export Jobs are currently running. Checking status every 30 seconds and output will be displayed once complete."
+    
+    Write-Output "`n`tMOF Export Job(s) are currently running. Checking status every 30 seconds and output will be displayed once complete."
+    
     do
     {
         $completedJobs  = (Get-Job -ID $jobs | where {$_.state -ne "Running"}).count
@@ -878,7 +893,7 @@ function Export-Mofs
         Start-Sleep -Seconds 30
     }
     while ((Get-Job -ID $jobs).State -contains "Running")
-    Write-Output "`n`t`t$($jobs.count) Mof Export Jobs completed. Receiving job output"
+    Write-Output "`n`t$($jobs.count) MOF Export Job(s) completed. Receiving job output"
     Get-Job -ID $jobs | Wait-Job | Receive-Job
 }
 
@@ -986,13 +1001,20 @@ function Import-DscModules
     <#
 
     .SYNOPSIS
-    Imports the required modules stored in the "Resources\Modules" folder on the local system.
+    Generates DSC scripts with combined parameter and parameter values based on
+    provided configuration data.
 
-    .PARAMETER RootPath
-    Path to the root of the SCAR repository/codebase.
+    .PARAMETER SystemFiles
+    Array of configuration data files. Targets all .psd1 files under the "Systems" folder
+    that are not located in the staging folder.
+    Example -SystemFiles $ConfigDataArray
+
+    .PARAMETER ArtifactPath
+    Path to the Artifacts Folder. Defaults to the "4. Artifacts" folder from the Rootpath provided by
+    the Start-DscBuild function.
 
     .EXAMPLE
-    Import-DscModules -ModulePath "$RootPath\Resouces\Modules"
+    Export-DynamicConfigs -SystemFiles $SystemFiles -ArtifactPath $artifactPath
 
     #>
 
