@@ -1,4 +1,4 @@
-function New-BuildAgent
+function New-AzureDevOpsAgent
 {
     <#
     .SYNOPSIS
@@ -28,7 +28,7 @@ function New-BuildAgent
     Number of self-hosted agents to build. 
 
     .EXAMPLE
-    New-BuildAgent -AgentPath "C:\Agents" -AgentZip "C:\Agent.zip" -AgentPoolName "MyAgentPool" -DevOpsUrl "https://MyDevOpsServer.com/MyOrganization" -AccessToken $myAccessToken -AgentName "StigAgent" -AgentCount 5
+    New-ADOAgent -AgentPath "C:\BuildAgents" -AgentZip "C:\Agent.zip" -AgentPoolName "MyAgentPool" -DevOpsUrl "https://MyDevOpsServer.com/MyOrganization" -AccessToken $myAccessToken -AgentName "StigAgent" -AgentCount 5
     #>
     
     [cmdletbinding()]
@@ -128,47 +128,77 @@ function New-BuildAgent
     }
 }
 
-function New-PushFromPipeline
+function New-AgentCommit
 {
     <#
 
     .SYNOPSIS
-    Commit Code changes to the main branch from Azure Pipelines
+    This command is used to commit code changes to the repository directly from an Azure Pipelines Build Agent.
+    New-AgentCommit can only be used within an Azure DevOps pipeline.  
 
-    .PARAMETER RootPath
+    .PARAMETER AgentName
+    Name of the Build Agent. Set to $(Agent.Name) within pipeline script
 
+    .PARAMETER RepoUrl
+    Name of the Build Agent. Set to $(Build.Repository.Name) within pipeline script
+    
+    .PARAMETER RepoName
+    Name of the DevOps Repository. Set to $(Build.Repository.Name) within pipeline script 
+
+    .PARAMETER AccessToken
+    Personal Access Token of the Build Agent. Set to $(System.AccessToken) within a pipeline script
 
     .EXAMPLE
-
+    This command should be used within the Powershell Task in Azure Pipelines and should be formatted as shown below:
+    $params = @{
+        AgentName = "$(Agent.Name)"
+        RepoURL = "$(Build.Repository.Uri)"
+        RepoName = "$(Build.Repository.Name)"
+        AccessToken = "$(System.AccessToken)"
+    }
+    New-AgentCommit @params
 
     #>
     [CmdletBinding()]
     param
-    ()
+    (
+        [Parameter()]
+        [string]
+        $AgentName,
+
+        [Parameter()]
+        [string]
+        $RepoUrl,
+        
+        [Parameter()]
+        [string]
+        $RepoName,
+
+        [Parameter()]
+        [string]
+        $AccessToken
+    )
 
     # Get items to copy
     $files = (Get-Childitem).fullname 
 
     # Set Git Config
-    git config --global user.email "xadmin@CONTOSO.COM"
-    git config --global user.name "xadmin"
+    git config --global user.email "$AgentName@CONTOSO.COM"
+    git config --global user.name "$AgentName"
     #$env:GIT_REDIRECT_STDERR = '2>&1'
 
     # Clone Repo 
-    git -c http.extraheader="AUTHORIZATION: bearer $(System.AccessToken)" clone  $(Build.Repository.Uri) -v
-    cd ".\$(Build.Repository.Name)"
+    git -c http.extraheader="AUTHORIZATION: bearer $AccessToken" clone  $RepoURL -v
+    Set-Location ".\$RepoName"
 
     # Copy items to clone repo
-    $dest = (Get-Location).Path
     foreach ($file in $files)
     {
-        Copy-Item $file -Destination $dest -Recurse -Force -Confirm:$False
+        Copy-Item $file -Destination (Get-Location).Path -Recurse -Force -Confirm:$False
     }
 
     # Push Changes to Master/Main branch
     git add --all
     git commit -m "Automated Commit"
-    git -c http.extraheader="AUTHORIZATION: bearer $(System.AccessToken)" push
-
+    git -c http.extraheader="AUTHORIZATION: bearer $AccessToken" push
 }
-
