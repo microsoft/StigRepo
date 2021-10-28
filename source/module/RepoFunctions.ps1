@@ -435,7 +435,7 @@ function Start-DscBuild
             $null = Get-ChildItem -Path "$systemsPath\*.psd1" -Recurse | Where-Object { ($_.Fullname -NotLike "*Staging*") -and ($_.Fullname -Notlike "*Readme*") -and ($_.FullName -like "*$ComputerName*")} | ForEach-Object {$null = $Systemfiles.add($_)}
             Get-CombinedConfigs -RootPath $RootPath -AllNodesDataFile $allNodesDataFile -SystemFiles $SystemFiles
             Export-DynamicConfigs -SystemFiles $SystemFiles -ArtifactPath $artifactPath -DscConfigPath $dscConfigPath
-            Export-Mofs -RootPath $RootPath -TargetFolder $TargetFolder
+            Export-Mofs -RootPath $RootPath -ComputerName $ComputerName
         }
         elseif ('' -eq $TargetFolder)
         {
@@ -736,7 +736,7 @@ function Export-DynamicConfigs
         }
         $null = $jobs.add($job.Id)
     }
-    Write-Output "`n`tDSC Compilation jobs started. Checking status every 30 seconds and output will be displayed once complete."
+    Write-Output "`n`tDSC Compilation job(s) started. Checking status every 30 seconds and output will be displayed once complete."
     do
     {
         $completedJobs  = (Get-Job -ID $jobs | where {$_.state -ne "Running"}).count
@@ -775,6 +775,10 @@ function Export-Mofs
         $TargetFolder,
 
         [Parameter()]
+        [string]
+        $ComputerName,
+
+        [Parameter()]
         [System.Collections.ArrayList]
         $SystemFiles
 
@@ -795,6 +799,10 @@ function Export-Mofs
         {
             $null = Get-Childitem "$RootPath\Systems\$TargetFolder\*.psd1" -Recurse | Where-Object fullname -notlike "*staging*" | ForEach-Object {$null = $SystemFiles.add($_)}
         }
+        elseif ('' -ne $ComputerName)
+        {
+            $null = Get-Childitem "$RootPath\Systems\*.psd1" -Recurse | Where-Object {$_.fullname -notlike "*staging*" -and $_.BaseName -eq $ComputerName} | ForEach-Object {$null = $SystemFiles.add($_)}
+        }
         else
         {
             $null = Get-Childitem "$RootPath\Systems\*.psd1" -Recurse | Where-Object fullname -notlike "*staging*" | ForEach-Object {$null = $SystemFiles.add($_)}
@@ -803,8 +811,8 @@ function Export-Mofs
 
     foreach ($file in $SystemFiles)
     {
-
         $basename = $file.basename
+        
         if (Test-Path "$dscConfigPath\$basename.ps1")
         {
             $null = Get-Item -path "$dscConfigPath\$basename.ps1" -erroraction SilentlyContinue | ForEach-Object {$null = $dscNodeConfigs.add($_)}
@@ -874,7 +882,9 @@ function Export-Mofs
             }
         }
     }
-    Write-Output "`n`tMOF Export Jobs are currently running. Checking status every 30 seconds and output will be displayed once complete."
+    
+    Write-Output "`n`tMOF Export Job(s) are currently running. Checking status every 30 seconds and output will be displayed once complete."
+    
     do
     {
         $completedJobs  = (Get-Job -ID $jobs | where {$_.state -ne "Running"}).count
@@ -883,7 +893,7 @@ function Export-Mofs
         Start-Sleep -Seconds 30
     }
     while ((Get-Job -ID $jobs).State -contains "Running")
-    Write-Output "`n`t`t$($jobs.count) Mof Export Jobs completed. Receiving job output"
+    Write-Output "`n`t$($jobs.count) MOF Export Job(s) completed. Receiving job output"
     Get-Job -ID $jobs | Wait-Job | Receive-Job
 }
 
@@ -991,13 +1001,20 @@ function Import-DscModules
     <#
 
     .SYNOPSIS
-    Imports the required modules stored in the "Resources\Modules" folder on the local system.
+    Generates DSC scripts with combined parameter and parameter values based on
+    provided configuration data.
 
-    .PARAMETER RootPath
-    Path to the root of the SCAR repository/codebase.
+    .PARAMETER SystemFiles
+    Array of configuration data files. Targets all .psd1 files under the "Systems" folder
+    that are not located in the staging folder.
+    Example -SystemFiles $ConfigDataArray
+
+    .PARAMETER ArtifactPath
+    Path to the Artifacts Folder. Defaults to the "4. Artifacts" folder from the Rootpath provided by
+    the Start-DscBuild function.
 
     .EXAMPLE
-    Import-DscModules -ModulePath "$RootPath\Resouces\Modules"
+    Export-DynamicConfigs -SystemFiles $SystemFiles -ArtifactPath $artifactPath
 
     #>
 
