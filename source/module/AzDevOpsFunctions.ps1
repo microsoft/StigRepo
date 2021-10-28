@@ -127,3 +127,48 @@ function New-BuildAgent
         Remove-Item $AgentZip -Force -Recurse -Confirm:$false
     }
 }
+
+function New-PushFromPipeline
+{
+    <#
+
+    .SYNOPSIS
+    Commit Code changes to the main branch from Azure Pipelines
+
+    .PARAMETER RootPath
+
+
+    .EXAMPLE
+
+
+    #>
+    [CmdletBinding()]
+    param
+    ()
+
+    # Get items to copy
+    $files = (Get-Childitem).fullname 
+
+    # Set Git Config
+    git config --global user.email "xadmin@CONTOSO.COM"
+    git config --global user.name "xadmin"
+    #$env:GIT_REDIRECT_STDERR = '2>&1'
+
+    # Clone Repo 
+    git -c http.extraheader="AUTHORIZATION: bearer $(System.AccessToken)" clone  $(Build.Repository.Uri) -v
+    cd ".\$(Build.Repository.Name)"
+
+    # Copy items to clone repo
+    $dest = (Get-Location).Path
+    foreach ($file in $files)
+    {
+        Copy-Item $file -Destination $dest -Recurse -Force -Confirm:$False
+    }
+
+    # Push Changes to Master/Main branch
+    git add --all
+    git commit -m "Automated Commit"
+    git -c http.extraheader="AUTHORIZATION: bearer $(System.AccessToken)" push
+
+}
+
