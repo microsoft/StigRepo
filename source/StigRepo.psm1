@@ -34,5 +34,6 @@ Export-ModuleMember -Function @(
     'Get-CombinedConfigs',
     'Export-DynamicConfigs',
     'Export-Mofs',
-    'New-BuildAgent'
+    'New-BuildAgent',
+    'New-AgentCommit'
 )
