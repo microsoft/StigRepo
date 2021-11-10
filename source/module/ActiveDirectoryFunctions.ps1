@@ -105,7 +105,7 @@ function New-SystemData
 
     if ('' -ne $SearchBase)             {$Scope = "OrgUnit"}
     elseif ($LocalHost)                 {$Scope = "Local"}
-    elseif ($ComputerName.count -eq 1)  {$Scope = "Targeted"}
+    elseif ($ComputerName.count -ge 1)  {$Scope = "Targeted"}
 
     switch ($Scope)
     {
@@ -113,7 +113,14 @@ function New-SystemData
         "MemberServers" {$targetMachines = @(Get-ADComputer -Filter {OperatingSystem -like "**server*"} -Properties "operatingsystem", "distinguishedname" | Where-Object {$_.DistinguishedName -Notlike "*Domain Controllers*"}) ; break }
         "AllServers"    {$targetMachines = @(Get-ADComputer -Filter {OperatingSystem -like "**server*"} -Properties "operatingsystem", "distinguishedname") ; break }
         "Full"          {$targetMachines = @(Get-ADComputer -Filter * -Properties "operatingsystem", "distinguishedname") ; break }
-        "Targeted"      {$targetMachines = @(Get-AdComputer -Identity "$ComputerName" -Properties "operatingsystem","distinguishedname") ; break }
+        "Targeted"      
+        {
+            foreach ($computer in $ComputerName) 
+            {
+                $targetMachines += Get-AdComputer -Identity "$computer" -Properties "operatingsystem","distinguishedname"
+            }
+            break
+        }
         "Local" 
         {
             if ($osVersion -like '*Server*') 
