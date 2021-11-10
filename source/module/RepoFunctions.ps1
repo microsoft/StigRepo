@@ -88,7 +88,7 @@ function Initialize-StigRepo
         return
     }
 
-    Update-StigRepo -RemoveBackup
+    Update-StigRepo -RemoveBackup -SkipStigRepoModule
 
     Write-Output "`n`tInstalling/Importing SCAR Modules"
     Sync-DscModules -LocalHost -Force
