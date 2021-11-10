@@ -8,7 +8,6 @@ foreach ($File in $FunctionScripts)
     Write-Verbose "Loading $($File.FullName)"
     . $File.FullName
 }
-
 Export-ModuleMember -Function @(
     'Initialize-StigRepo',
     'Compress-StigRepoArtifacts',
@@ -34,5 +33,7 @@ Export-ModuleMember -Function @(
     'Get-StigFiles',
     'Get-CombinedConfigs',
     'Export-DynamicConfigs',
-    'Export-Mofs'
+    'Export-Mofs',
+    'New-BuildAgent',
+    'New-AgentCommit'
 )
